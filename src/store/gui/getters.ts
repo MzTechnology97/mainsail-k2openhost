@@ -8,7 +8,6 @@ export const getters: GetterTree<GuiState, RootState> = {
     theme: (state): string => {
         const theme = state.uiSettings.theme
 
-        // return defaultTheme, if theme doesnt exists
         if (themes.findIndex((tmp: Theme) => tmp.name === theme) === -1) return defaultTheme
 
         return theme
@@ -47,7 +46,6 @@ export const getters: GetterTree<GuiState, RootState> = {
     getAllPossiblePanels: (state, getters, rootState, rootGetters) => {
         let allPanels = [...allDashboardPanels]
 
-        // remove macros panel and add macrogroups panels if macroMode === expert
         if (state.macros?.mode === 'expert') {
             const macrogroups = getters['macros/getAllMacrogroups']
 
@@ -58,46 +56,42 @@ export const getters: GetterTree<GuiState, RootState> = {
             allPanels = allPanels.filter((name) => name !== 'macros')
         }
 
-        // remove toolhead & machine-settings panel, if kinematics === none
         const printerKinematics = rootGetters['printer/getKinematics']
         if (printerKinematics === 'none') {
             allPanels = allPanels.filter((name) => !['toolhead-control', 'machine-settings'].includes(name))
         }
 
-        // remove extruder panel, if printerExtruderCount < 1
         const printerExtruders = rootGetters['printer/getExtruders']
         if (printerExtruders.length < 1) {
             allPanels = allPanels.filter((name) => name !== 'extruder-control')
         }
 
-        // remove temperature panel, if sensors < 1
         const printerTemperatureSensors = rootState.printer?.heaters?.available_sensors ?? []
         if (printerTemperatureSensors.length < 1) {
             allPanels = allPanels.filter((name) => name !== 'temperature')
         }
 
-        // remove webcam panel, if no webcam exists
         const webcams = getters['webcams/getWebcams']
         if (webcams.length === 0) {
             allPanels = allPanels.filter((name) => name !== 'webcam')
         }
 
-        // remove spoolman panel, if no spoolman component exists in moonraker
         if (!rootState.server?.components.includes('spoolman')) {
             allPanels = allPanels.filter((name) => name !== 'spoolman')
         }
 
-        // remove afc panel, if no AFC module exists in Klipper
         if (!rootState.printer?.AFC) {
             allPanels = allPanels.filter((name) => name !== 'afc')
         }
 
-        // remove mmu panel, if no Happy Hare exists in Klipper
+        if (!rootState.printer?.box) {
+            allPanels = allPanels.filter((name) => name !== 'cfs')
+        }
+
         if (!rootState.printer?.mmu) {
             allPanels = allPanels.filter((name) => name !== 'mmu')
         }
 
-        // remove led_effects panel, if no led_effect object exists in Klipper
         const ledEffectsPrefix = 'led_effect '
         const existsLedEffects = Object.keys(rootState.printer ?? {}).some((name) =>
             name.toLowerCase().startsWith(ledEffectsPrefix)
