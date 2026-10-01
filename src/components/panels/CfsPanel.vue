@@ -59,13 +59,13 @@
                 <v-chip v-if="readOnlyMode" small color="warning" class="mr-2 mb-1" outlined>
                     Read only
                 </v-chip>
-                <v-chip v-if="box.temp_c !== null" small class="mr-2 mb-1" outlined>
+                <v-chip small class="mr-2 mb-1" outlined :title="temperatureHint">
                     <v-icon left small>{{ mdiThermometer }}</v-icon>
-                    {{ box.temp_c.toFixed(1) }} °C
+                    {{ temperatureText }}
                 </v-chip>
-                <v-chip v-if="box.humidity_pct !== null" small class="mr-2 mb-1" outlined>
+                <v-chip small class="mr-2 mb-1" outlined :title="humidityHint">
                     <v-icon left small>{{ mdiWaterPercent }}</v-icon>
-                    {{ box.humidity_pct.toFixed(0) }}%
+                    {{ humidityText }}
                 </v-chip>
                 <v-chip small class="mr-2 mb-1" outlined>API v{{ box.api_version }}</v-chip>
             </div>
@@ -288,6 +288,30 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     get readOnlyMode(): boolean {
         return this.box.print_mapping_enabled === false
+    }
+
+    get temperatureText(): string {
+        return typeof this.box.temp_c === 'number' && Number.isFinite(this.box.temp_c)
+            ? `${this.box.temp_c.toFixed(1)} °C`
+            : '-- °C'
+    }
+
+    get humidityText(): string {
+        return typeof this.box.humidity_pct === 'number' && Number.isFinite(this.box.humidity_pct)
+            ? `${this.box.humidity_pct.toFixed(0)}% RH`
+            : '-- % RH'
+    }
+
+    get temperatureHint(): string {
+        return this.box.temp_c === null
+            ? 'CFS temperature is not reported by the current K2 Pro BOX_STATE response.'
+            : 'CFS temperature'
+    }
+
+    get humidityHint(): string {
+        return this.box.humidity_pct === null
+            ? 'CFS humidity is not reported by the current K2 Pro BOX_STATE response.'
+            : 'CFS relative humidity'
     }
 
     get liveK2ProStateWithoutLegacyCode(): boolean {
