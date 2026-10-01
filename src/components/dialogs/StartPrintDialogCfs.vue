@@ -1,10 +1,6 @@
 <template>
     <v-card-text class="py-3 px-0 bt-1">
-        <v-alert v-if="!mappingEnabled" dense text type="info" class="mx-6 mb-0">
-            CFS print mapping is unavailable in the current Box mode. The file can still be started normally.
-        </v-alert>
-
-        <div v-else-if="waiting" class="px-6 py-2 d-flex align-center text--secondary">
+        <div v-if="waiting" class="px-6 py-2 d-flex align-center text--secondary">
             <v-progress-circular indeterminate size="18" width="2" class="mr-3" />
             Reading CFS filament metadata from the G-code…
         </div>
@@ -12,6 +8,41 @@
         <v-alert v-else-if="!tools.length" dense text type="info" class="mx-6 mb-0">
             No Orca filament-usage metadata was found. Mainsail will use the normal print start path.
         </v-alert>
+
+        <template v-else-if="!mappingEnabled">
+            <div class="px-6 pb-2">
+                <div class="text-subtitle-2 font-weight-bold">CFS filament metadata</div>
+                <div class="caption text--secondary">
+                    The CFS is currently read only. Filament metadata can still be inspected, but CFS slot mapping cannot be applied.
+                </div>
+            </div>
+
+            <v-row
+                v-for="(tool, index) in tools"
+                :key="tool.tool"
+                no-gutters
+                :class="{ 'bt-1': index > 0 }"
+                class="px-6 py-2">
+                <v-col cols="12" class="d-flex align-center">
+                    <div class="cfs-tool-color mr-3" :style="{ backgroundColor: toolColor(tool.color) }" />
+                    <div class="overflow-hidden">
+                        <div class="text-subtitle-1 font-weight-bold">T{{ tool.tool }}</div>
+                        <div class="body-2 text-truncate">{{ tool.name || tool.material || 'Filament' }}</div>
+                        <div class="caption text--secondary text-truncate">
+                            {{ tool.material || 'Unknown material' }}
+                            <template v-if="tool.color"> · {{ tool.color }}</template>
+                        </div>
+                    </div>
+                </v-col>
+            </v-row>
+
+            <v-alert v-if="readOnlyBlocksNormalPrint" dense text type="warning" class="mx-6 mt-3 mb-0">
+                {{ tools.length }} tools were detected in this G-code. CFS mapping is unavailable in read-only mode, so normal Print is disabled to avoid starting a multimaterial job without a tool-to-slot map.
+            </v-alert>
+            <v-alert v-else dense text type="info" class="mx-6 mt-3 mb-0">
+                A single filament tool was detected. CFS mapping is unavailable in read-only mode, but this file can still be started normally.
+            </v-alert>
+        </template>
 
         <template v-else>
             <div class="px-6 pb-2 d-flex align-center">
@@ -29,7 +60,12 @@
                 CFS slots are not ready yet. Wait for Box discovery before starting the mapped print.
             </v-alert>
 
-            <v-row v-for="(tool, index) in tools" :key="tool.tool" no-gutters :class="{ 'bt-1': index > 0 }" class="px-6 py-2">
+            <v-row
+                v-for="(tool, index) in tools"
+                :key="tool.tool"
+                no-gutters
+                :class="{ 'bt-1': index > 0 }"
+                class="px-6 py-2">
                 <v-col cols="12" sm="6" class="d-flex align-center pr-sm-3 mb-2 mb-sm-0">
                     <div class="cfs-tool-color mr-3" :style="{ backgroundColor: toolColor(tool.color) }" />
                     <div class="overflow-hidden">
@@ -90,8 +126,12 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         return this.$store.state.printer.box as CfsBoxState
     }
 
+    get mappingSupported(): boolean {
+        return (this.box?.print_mapping_version ?? 0) >= 1
+    }
+
     get mappingEnabled(): boolean {
-        return this.box?.print_mapping_enabled !== false && (this.box?.print_mapping_version ?? 0) >= 1
+        return this.mappingSupported && this.box?.print_mapping_enabled !== false
     }
 
     get fullFilename(): string {
@@ -121,6 +161,10 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
             }))
     }
 
+    get readOnlyBlocksNormalPrint(): boolean {
+        return !this.mappingEnabled && !this.waiting && this.tools.length > 1
+    }
+
     get requiresMapping(): boolean {
         return this.mappingEnabled && !this.waiting && this.tools.length > 0
     }
@@ -138,8 +182,8 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     }
 
     get canStart(): boolean {
-        if (!this.mappingEnabled) return true
         if (this.waiting) return false
+        if (!this.mappingEnabled) return !this.readOnlyBlocksNormalPrint
         return !this.requiresMapping || this.mappingValid
     }
 
@@ -168,6 +212,12 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     }
 
     autoMap(): void {
+        if (!this.mappingEnabled) {
+            this.mapping = {}
+            this.emitState()
+            return
+        }
+
         const slots = (this.box?.slots ?? []).slice().sort((a, b) => a.index - b.index)
         const used = new Set<number>()
         const next: Record<number, number | null> = {}
@@ -202,7 +252,7 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     }
 
     inspect(): void {
-        if (!this.active || !this.mappingEnabled || !this.fullFilename) {
+        if (!this.active || !this.mappingSupported || !this.fullFilename) {
             this.waiting = false
             this.emitState()
             return
@@ -225,12 +275,16 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     applyPrintInfo(info: CfsPrintInfo | null | undefined): void {
         if (!info || info.filename !== this.requestedFilename) return
         this.waiting = false
-        this.autoMap()
+        if (this.mappingEnabled) {
+            this.autoMap()
+            return
+        }
+        this.mapping = {}
         this.emitState()
     }
 
     startMappedPrint(filename: string): boolean {
-        if (!this.requiresMapping) return false
+        if (!this.mappingEnabled || !this.requiresMapping) return false
         if (!this.mappingValid) return true
 
         const map = this.tools.map((tool) => `${tool.tool}:${this.mapping[tool.tool]}`).join(',')
@@ -266,6 +320,12 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     @Watch('box.print_info', { deep: true })
     onPrintInfoChanged(info: CfsPrintInfo | null | undefined): void {
         this.applyPrintInfo(info)
+    }
+
+    @Watch('box.print_mapping_enabled')
+    onMappingEnabledChanged(): void {
+        if (this.active && this.printInfo) this.applyPrintInfo(this.printInfo)
+        else this.emitState()
     }
 
     @Watch('box.driver_ready')
