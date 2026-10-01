@@ -18,49 +18,30 @@
                 </template>
                 <v-list dense min-width="330">
                     <v-list-item @click="toggleSetting('_BOX_SET_RUNOUT_SWAP', 'runout_swap_enabled')">
-                        <v-list-item-icon>
-                            <v-icon>{{ mdiSwapHorizontal }}</v-icon>
-                        </v-list-item-icon>
-                        <v-list-item-content>
-                            <v-list-item-title><code>runout_swap</code></v-list-item-title>
-                        </v-list-item-content>
+                        <v-list-item-icon><v-icon>{{ mdiSwapHorizontal }}</v-icon></v-list-item-icon>
+                        <v-list-item-content><v-list-item-title><code>runout_swap</code></v-list-item-title></v-list-item-content>
                         <v-list-item-action>
                             <v-switch :input-value="box.runout_swap_enabled" readonly inset hide-details />
                         </v-list-item-action>
                     </v-list-item>
-                    <v-list-item
-                        @click="toggleSetting('_BOX_SET_UNLOAD_AFTER_PRINT', 'unload_after_print_enabled')">
-                        <v-list-item-icon>
-                            <v-icon>{{ mdiTrayArrowUp }}</v-icon>
-                        </v-list-item-icon>
-                        <v-list-item-content>
-                            <v-list-item-title><code>unload_after_print</code></v-list-item-title>
-                        </v-list-item-content>
+                    <v-list-item @click="toggleSetting('_BOX_SET_UNLOAD_AFTER_PRINT', 'unload_after_print_enabled')">
+                        <v-list-item-icon><v-icon>{{ mdiTrayArrowUp }}</v-icon></v-list-item-icon>
+                        <v-list-item-content><v-list-item-title><code>unload_after_print</code></v-list-item-title></v-list-item-content>
                         <v-list-item-action>
                             <v-switch :input-value="box.unload_after_print_enabled" readonly inset hide-details />
                         </v-list-item-action>
                     </v-list-item>
                     <v-divider />
-                    <v-list-item
-                        @click="toggleSetting('_BOX_SET_RFID_INSERT_READING', 'rfid_insert_reading_enabled')">
-                        <v-list-item-icon>
-                            <v-icon>{{ mdiNfc }}</v-icon>
-                        </v-list-item-icon>
-                        <v-list-item-content>
-                            <v-list-item-title><code>RFID insert</code></v-list-item-title>
-                        </v-list-item-content>
+                    <v-list-item @click="toggleSetting('_BOX_SET_RFID_INSERT_READING', 'rfid_insert_reading_enabled')">
+                        <v-list-item-icon><v-icon>{{ mdiNfc }}</v-icon></v-list-item-icon>
+                        <v-list-item-content><v-list-item-title><code>RFID insert</code></v-list-item-title></v-list-item-content>
                         <v-list-item-action>
                             <v-switch :input-value="box.rfid_insert_reading_enabled" readonly inset hide-details />
                         </v-list-item-action>
                     </v-list-item>
-                    <v-list-item
-                        @click="toggleSetting('_BOX_SET_RFID_STARTUP_READING', 'rfid_startup_reading_enabled')">
-                        <v-list-item-icon>
-                            <v-icon>{{ mdiNfcVariant }}</v-icon>
-                        </v-list-item-icon>
-                        <v-list-item-content>
-                            <v-list-item-title><code>RFID startup</code></v-list-item-title>
-                        </v-list-item-content>
+                    <v-list-item @click="toggleSetting('_BOX_SET_RFID_STARTUP_READING', 'rfid_startup_reading_enabled')">
+                        <v-list-item-icon><v-icon>{{ mdiNfcVariant }}</v-icon></v-list-item-icon>
+                        <v-list-item-content><v-list-item-title><code>RFID startup</code></v-list-item-title></v-list-item-content>
                         <v-list-item-action>
                             <v-switch :input-value="box.rfid_startup_reading_enabled" readonly inset hide-details />
                         </v-list-item-action>
@@ -166,7 +147,11 @@
             <div class="d-flex flex-wrap align-center caption text--secondary">
                 <span class="mr-4">
                     <v-icon x-small class="mr-1">{{ mdiPrinter3dNozzle }}</v-icon>
-                    {{ box.filament_detected ? $t('Panels.MmuPanel.RunoutSensor.Detected') : $t('Panels.MmuPanel.RunoutSensor.Empty') }}
+                    {{
+                        box.filament_detected
+                            ? $t('Panels.MiscellaneousPanel.RunoutSensor.Detected')
+                            : $t('Panels.MiscellaneousPanel.RunoutSensor.Empty')
+                    }}
                 </span>
                 <span class="mr-4">
                     <v-icon x-small class="mr-1">{{ mdiTransitConnectionVariant }}</v-icon>
