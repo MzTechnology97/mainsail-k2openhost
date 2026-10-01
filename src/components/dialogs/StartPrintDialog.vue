@@ -1,7 +1,7 @@
 <template>
     <v-dialog
         v-model="showDialog"
-        :max-width="400"
+        :max-width="cfsExists ? 680 : 400"
         content-class="overflow-x-hidden"
         @click:outside="closeDialog"
         @keydown.esc="closeDialog">
@@ -13,7 +13,14 @@
                     {{ question }}
                 </p>
             </v-card-text>
-            <start-print-dialog-afc v-if="afcExists" :file="file" />
+            <start-print-dialog-cfs
+                v-if="cfsExists"
+                ref="cfs"
+                :file="file"
+                :current-path="currentPath"
+                :active="showDialog"
+                @state="onCfsState" />
+            <start-print-dialog-afc v-else-if="afcExists" :file="file" />
             <start-print-dialog-mmu v-else-if="existsMmu" :file="file" />
             <start-print-dialog-spoolman v-else-if="existsSpoolman" :file="file" />
             <start-print-dialog-timelapse v-if="existsTimelapse" />
@@ -24,7 +31,7 @@
                 <v-btn
                     color="primary"
                     text
-                    :disabled="printerIsPrinting || !klipperReadyForGui"
+                    :disabled="printerIsPrinting || !klipperReadyForGui || (cfsExists && !cfsCanStart)"
                     @click="startPrint(file.filename)">
                     {{ $t('Dialogs.StartPrint.Print') }}
                 </v-btn>
@@ -41,16 +48,37 @@ import SettingsRow from '@/components/settings/SettingsRow.vue'
 import { mdiPrinter3d } from '@mdi/js'
 import { ServerSpoolmanStateSpool } from '@/store/server/spoolman/types'
 import AfcMixin from '@/components/mixins/afc'
+import { CfsBoxState } from '@/types/cfs'
+
+interface CfsDialogState {
+    canStart: boolean
+    requiresMapping: boolean
+    mappingValid: boolean
+    waiting: boolean
+}
+
+interface CfsStartDialogRef {
+    startMappedPrint: (filename: string) => boolean
+}
 
 @Component({
     components: { SettingsRow },
 })
 export default class StartPrintDialog extends Mixins(BaseMixin, AfcMixin) {
     mdiPrinter3d = mdiPrinter3d
+    cfsCanStart = true
 
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ required: true, default: '' }) readonly currentPath!: string
     @Prop({ required: true }) readonly file!: FileStateGcodefile
+
+    get cfsBox(): CfsBoxState | undefined {
+        return this.$store.state.printer.box as CfsBoxState | undefined
+    }
+
+    get cfsExists(): boolean {
+        return (this.cfsBox?.print_mapping_version ?? 0) >= 1
+    }
 
     get existsMmu() {
         return this.$store.state.printer.mmu?.enabled && this.$store.state.printer.mmu?.gate !== -2
@@ -65,7 +93,7 @@ export default class StartPrintDialog extends Mixins(BaseMixin, AfcMixin) {
     }
 
     get showDivider() {
-        return this.afcExists || this.existsSpoolman || this.existsTimelapse
+        return this.cfsExists || this.afcExists || this.existsSpoolman || this.existsTimelapse
     }
 
     get active_spool(): ServerSpoolmanStateSpool | null {
@@ -90,8 +118,20 @@ export default class StartPrintDialog extends Mixins(BaseMixin, AfcMixin) {
             filename = filename.substring(1)
         }
 
+        if (this.cfsExists) {
+            const cfs = this.$refs.cfs as unknown as CfsStartDialogRef | undefined
+            if (cfs?.startMappedPrint(filename)) {
+                this.closeDialog()
+                return
+            }
+        }
+
         this.closeDialog()
         this.$socket.emit('printer.print.start', { filename }, { action: 'switchToDashboard' })
+    }
+
+    onCfsState(state: CfsDialogState): void {
+        this.cfsCanStart = state.canStart
     }
 
     closeDialog() {
@@ -100,6 +140,9 @@ export default class StartPrintDialog extends Mixins(BaseMixin, AfcMixin) {
 
     @Watch('showDialog')
     onShowDialogChanged(newVal: boolean) {
+        if (newVal && this.cfsExists) this.cfsCanStart = false
+        else if (!newVal) this.cfsCanStart = true
+
         if (!newVal || !this.file || this.file.metadataPulled || this.file.metadataRequested) return
 
         const fullPath = ['gcodes']
