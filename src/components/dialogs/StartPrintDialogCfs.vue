@@ -37,10 +37,10 @@
             </v-row>
 
             <v-alert v-if="readOnlyBlocksNormalPrint" dense text type="warning" class="mx-6 mt-3 mb-0">
-                {{ tools.length }} tools were detected in this G-code. CFS mapping is unavailable in read-only mode, so normal Print is disabled to avoid starting a multimaterial job without a tool-to-slot map.
+                {{ tools.length }} tools were detected in this G-code. Read-only mode cannot safely translate the file's T commands yet, so Print stays disabled. In operational mode each tool may be mapped either to a populated CFS slot or to the separate external spool.
             </v-alert>
             <v-alert v-else dense text type="info" class="mx-6 mt-3 mb-0">
-                A single filament tool was detected. CFS mapping is unavailable in read-only mode, but this file can still be started normally.
+                A single filament tool was detected. It may be supplied by a CFS slot or by filament already loaded from the external spool path; normal Print remains available in read-only mode.
             </v-alert>
         </template>
 
@@ -48,7 +48,7 @@
             <div class="px-6 pb-2 d-flex align-center">
                 <div>
                     <div class="text-subtitle-2 font-weight-bold">CFS filament mapping</div>
-                    <div class="caption text--secondary">Assign every slicer tool to a CFS slot before printing.</div>
+                    <div class="caption text--secondary">Assign every slicer tool to a populated CFS slot or to the separate external spool before printing.</div>
                 </div>
                 <v-spacer />
                 <v-btn small text color="primary" :disabled="!box.driver_ready" @click="autoMap">
@@ -88,7 +88,7 @@
                         dense
                         outlined
                         hide-details
-                        label="CFS slot"
+                        label="Filament source"
                         @change="setMapping(tool.tool, $event)" />
                 </v-col>
             </v-row>
@@ -201,7 +201,7 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     }
 
     slotText(slot: CfsSlot): string {
-        const label = slot.external ? 'External' : `T${slot.index}`
+        const label = slot.external ? 'External spool (EXT)' : `T${slot.index}`
         const identity = slot.name || slot.material || (slot.present ? 'Filament present' : 'Empty')
         const suffix = slot.loaded ? ' · loaded' : ''
         return `${label} · ${identity}${suffix}`
@@ -219,29 +219,38 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         }
 
         const slots = (this.box?.slots ?? []).slice().sort((a, b) => a.index - b.index)
+        const physical = slots.filter((slot) => !slot.external && slot.present)
+        const external = slots.find((slot) => slot.external)
         const used = new Set<number>()
         const next: Record<number, number | null> = {}
 
         for (const tool of this.tools) {
-            const physical = slots.filter((slot) => !slot.external && slot.present)
-            const external = slots.filter((slot) => slot.external)
-            const candidates = [...physical.filter((slot) => !used.has(slot.index)), ...physical, ...external]
-
             const material = this.normalize(tool.material)
             const color = this.normalize(tool.color)
+            const unusedPhysical = physical.filter((slot) => !used.has(slot.index))
 
-            let selected = candidates.find(
-                (slot) =>
-                    material &&
-                    this.normalize(slot.material) === material &&
-                    color &&
-                    this.normalize(slot.color) === color
-            )
-            if (!selected) {
-                selected = candidates.find((slot) => material && this.normalize(slot.material) === material)
-            }
-            if (!selected) selected = candidates.find((slot) => slot.loaded)
-            if (!selected) selected = candidates[0]
+            const exactMatch = (slot: CfsSlot): boolean =>
+                !!material &&
+                this.normalize(slot.material) === material &&
+                !!color &&
+                this.normalize(slot.color) === color
+            const materialMatch = (slot: CfsSlot): boolean =>
+                !!material && this.normalize(slot.material) === material
+
+            // Prefer an actual matching CFS spool. Never silently map a tool
+            // to an unrelated physical CFS slot just because that slot is populated.
+            let selected = unusedPhysical.find(exactMatch) ?? physical.find(exactMatch)
+            if (!selected && external && exactMatch(external)) selected = external
+            if (!selected) selected = unusedPhysical.find(materialMatch) ?? physical.find(materialMatch)
+            if (!selected && external && materialMatch(external)) selected = external
+
+            // A filament that is already in the hotend is the best fallback,
+            // including the external spool path reported by Box as EXT.
+            if (!selected) selected = slots.find((slot) => slot.loaded)
+
+            // If no CFS spool matches the slicer metadata, leave the physical
+            // CFS slots untouched and offer the separate external path instead.
+            if (!selected) selected = external
 
             next[tool.tool] = selected?.index ?? null
             if (selected && !selected.external) used.add(selected.index)
