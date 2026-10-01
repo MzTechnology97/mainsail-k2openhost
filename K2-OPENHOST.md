@@ -12,6 +12,13 @@ Original project:
 
 K2-OpenHost does not claim authorship of the Mainsail UI. This fork exists so K2-specific UI experiments can be developed separately without rewriting or obscuring upstream credit.
 
+The CFS integration is informed by two public projects while intentionally using a K2-OpenHost-native architecture:
+
+- **Jacob10383/k2-plus-custom-firmware** and **Jacob10383/fluidd** — source/reference for the Box API, Filament Box workflow, `BOX_PRINT_INFO`, `BOX_PRINT_START`, logical-tool mapping and the Fluidd CFS user experience;
+- **HimAndRobot/creality-cfs-mainsail-integration** — useful UI/UX reference for CFS slot cards, colors and busy/loading presentation.
+
+K2-OpenHost does **not** use the HimAndRobot direct Creality `web-server` / port `9999` communication path. The Mainsail fork consumes the native Klipper `box` object through Moonraker.
+
 ## Current K2-OpenHost architecture
 
 ```text
@@ -25,11 +32,70 @@ Creality K2 Pro
   `-- Raspberry Pi CM5 / external Linux host
         +-- kalico-k2pro:k2-pro-openhost
         +-- Moonraker
-        +-- Mainsail
+        +-- mainsail-k2openhost
         `-- Cartographer direct USB (target topology)
 ```
 
 Mainsail runs against Moonraker on the external host. The original K2 T113 remains a candidate for a future local-screen UI such as HelixScreen, while browser Mainsail remains the primary development interface.
+
+## Native CFS integration
+
+The dashboard contains a native **CFS / Filament Box** panel driven by:
+
+```text
+Kalico Box/CFS
+    -> printer.objects.box
+    -> Moonraker WebSocket
+    -> Mainsail Vue/Vuex state
+```
+
+There is no extra CFS HTTP daemon, no direct RS-485 parsing in the frontend, and no injected JavaScript layer.
+
+The panel consumes the Box API for:
+
+- CFS/external slot presence and loaded state;
+- filament material, color, brand/name and RFID percentage;
+- temperature and humidity when available;
+- buffer, encoder, printhead sensor and clog state;
+- runout/recovery state;
+- Box settings and CFS actions when the backend is in operational mode.
+
+## CFS print mapping
+
+K2-OpenHost now follows Jacob's current print-start model rather than treating slicer `T0`, `T1`, etc. as fixed physical CFS slots.
+
+The backend exposes:
+
+```text
+BOX_PRINT_INFO FILENAME="path/file.gcode"
+BOX_PRINT_START FILENAME="path/file.gcode" MAP="0:1,1:3"
+```
+
+and adds these fields to `printer.objects.box`:
+
+```text
+print_mapping_version
+print_mapping_enabled
+print_info
+print_mapping
+```
+
+When the normal Mainsail **Print** dialog opens, the K2-OpenHost frontend asks Kalico to inspect the Orca G-code footer. If filament usage metadata is present, the dialog shows each logical slicer tool and asks which CFS slot should supply it. It can auto-map by material/color and still allows manual selection.
+
+Conceptually:
+
+```text
+Orca logical T0 -----> CFS physical slot T1
+Orca logical T1 -----> CFS physical slot T3
+
+BOX_PRINT_START ... MAP="0:1,1:3"
+```
+
+The backend validates that every used tool is mapped, that physical slots are online and contain filament, then starts Virtual SD with the mapping installed before the first file command executes. During the job, logical `Tn` commands are resolved through that map.
+
+If no supported filament-usage metadata is found, Mainsail falls back to its normal print-start path. If Box is in K2-OpenHost `observation_mode`, metadata inspection remains available but mapped CFS printing is disabled.
+
+The current compatibility bridge also translates Orca purge-matrix and nozzle-temperature metadata from logical tool indices to the physical slot indices expected by the already hardware-validated OpenHost `BoxChangeEngine`. This preserves the existing K2 Pro transport/control code while adopting Jacob's newer frontend/backend contract.
 
 ## Current validated machine-control milestone
 
@@ -44,7 +110,10 @@ As of 2026-10-01, the external-host stack has validated on the real K2 Pro:
 - bed/nozzle/chamber heater control and PID tuning;
 - emergency shutdown of active heater loads;
 - a successful Klippain-ShakeTune resonance test;
-- protected CFS observation mode.
+- protected CFS observation mode;
+- native Moonraker visibility of the `box` object and CFS slot/path state.
+
+The new mapped-print path still requires staged hardware validation before it is considered production-ready. Start with `BOX_PRINT_INFO` because it is metadata-only; validate `BOX_PRINT_START` only after the Box backend is intentionally switched from observation mode to operational mode.
 
 Cartographer direct-USB validation and a complete supervised print remain pending.
 
