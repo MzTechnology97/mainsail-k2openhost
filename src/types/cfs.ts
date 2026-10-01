@@ -16,6 +16,25 @@ export interface CfsMaterial {
     target_temp: number
 }
 
+export interface CfsPrintTool {
+    tool: number
+    color: string
+    material: string
+    name: string
+}
+
+export interface CfsPrintInfo {
+    filename: string
+    tools: CfsPrintTool[]
+}
+
+export interface CfsPrintMapping {
+    filename: string | null
+    map: Record<string, number>
+    active_tool: number | null
+    active_slot: number | null
+}
+
 export interface CfsLoadPath {
     source_slot: number | null
     loaded_slot: number
@@ -66,6 +85,10 @@ export interface CfsRecovery {
 export interface CfsBoxState {
     api_version: number
     fluidd_widget_version: number
+    print_mapping_version?: number
+    print_mapping_enabled?: boolean
+    print_info?: CfsPrintInfo | null
+    print_mapping?: CfsPrintMapping
     data_ready: boolean
     status: string
     status_code: number
