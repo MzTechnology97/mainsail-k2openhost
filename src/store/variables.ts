@@ -110,6 +110,7 @@ export const maxGcodeHistory = 50
  */
 export const allDashboardPanels = [
     'afc',
+    'cfs',
     'toolhead-control',
     'extruder-control',
     'macros',
@@ -141,7 +142,6 @@ export const timelapseConsoleFilters = [
     '^TIMELAPSE_RENDER',
     '^_SET_TIMELAPSE_SETUP',
     '^HYPERLAPSE ACTION=',
-    '^SET_GCODE_VARIABLE MACRO=TIMELAPSE_',
 ]
 
 /*
