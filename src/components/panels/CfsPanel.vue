@@ -54,7 +54,7 @@
             <div class="d-flex align-center flex-wrap mb-3">
                 <v-chip small :color="statusColor" class="mr-2 mb-1" outlined>
                     <v-icon left small>{{ statusIcon }}</v-icon>
-                    {{ box.status }} / {{ box.state }}
+                    {{ box.status }} / {{ displayState }}
                 </v-chip>
                 <v-chip v-if="box.temp_c !== null" small class="mr-2 mb-1" outlined>
                     <v-icon left small>{{ mdiThermometer }}</v-icon>
@@ -283,9 +283,22 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return [...this.box.slots].sort((a, b) => a.index - b.index)
     }
 
+    get liveK2ProStateWithoutLegacyCode(): boolean {
+        return this.box.driver_ready && this.box.data_ready && this.box.status_code === 0 && this.box.state_code === null
+    }
+
+    get displayState(): string {
+        if (this.liveK2ProStateWithoutLegacyCode) {
+            if (this.box.tracking_active) return 'Active'
+            if (this.box.loaded_slot >= 0 || this.box.filament_detected) return 'Loaded'
+            return 'Idle'
+        }
+        return this.box.state
+    }
+
     get statusColor(): string {
-        if (!this.box.driver_ready || this.box.status_code !== 0) return 'error'
-        if (this.box.state === 'NO_RESPONSE') return 'warning'
+        if (!this.box.driver_ready || !this.box.data_ready || this.box.status_code !== 0) return 'error'
+        if (this.box.state === 'NO_RESPONSE' && !this.liveK2ProStateWithoutLegacyCode) return 'warning'
         return 'success'
     }
 
