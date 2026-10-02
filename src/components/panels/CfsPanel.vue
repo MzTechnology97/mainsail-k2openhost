@@ -111,7 +111,7 @@
                                     <div class="cfs-spool mr-3" v-bind="attrs" v-on="on">
                                         <div class="cfs-spool-ring" :style="spoolRingStyle(slot)" />
                                         <div class="cfs-spool-hole" />
-                                        <div class="cfs-spool-core" />
+                                        <div class="cfs-spool-core" :style="{ backgroundColor: slotColor(slot) }" />
                                     </div>
                                 </template>
                                 <span>{{ slotTooltip(slot) }}</span>
@@ -273,8 +273,8 @@
             :prefill-color="pendingRfidColor" />
         <cfs-slot-filament-dialog
             :key="editingSlot ? `cfs-slot-dialog-${editingSlot.index}` : 'cfs-slot-dialog-empty'"
-            :slot="editingSlot"
             v-model="showSlotDialog"
+            :cfs-slot="editingSlot"
             :box="box" />
     </panel>
 </template>
@@ -567,13 +567,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         if (percent === null) {
             return {
                 background: color,
-                boxShadow: `inset 0 0 0 1px rgba(255,255,255,.26), 0 0 0 1px rgba(127,127,127,.5)`,
+                borderColor: color,
             }
         }
 
+        const degrees = Math.max(0, Math.min(360, percent * 3.6))
         return {
-            background: `conic-gradient(${color} 0% ${percent}%, rgba(127,127,127,.28) ${percent}% 100%)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,.26), 0 0 0 1px rgba(127,127,127,.5)`,
+            background: `conic-gradient(from -90deg, ${color} 0deg ${degrees}deg, rgba(255,255,255,.12) ${degrees}deg 360deg)`,
+            borderColor: color,
         }
     }
 
@@ -668,7 +669,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 <style scoped>
 .cfs-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 8px;
     width: 100%;
     align-items: stretch;
@@ -676,14 +677,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-slot-card {
     min-width: 0;
-    min-height: 148px;
+    min-height: 166px;
     border-radius: 8px !important;
     overflow: hidden;
 }
 
 .cfs-slot-body {
-    min-height: 96px;
-    padding: 11px 10px !important;
+    min-height: 116px;
+    padding: 14px 14px 12px !important;
 }
 
 .cfs-slot-main {
@@ -706,33 +707,33 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-slot-name {
-    font-size: 0.9rem !important;
-    font-weight: 600;
+    font-size: 0.98rem !important;
+    font-weight: 650;
     margin-top: 2px;
     line-height: 1.2;
 }
 
 .cfs-slot-meta {
     margin-top: 2px;
-    font-size: 0.73rem !important;
+    font-size: 0.80rem !important;
     line-height: 1.25;
 }
 
 .cfs-slot-remaining {
     margin-top: 3px;
-    font-size: 0.76rem;
+    font-size: 0.82rem;
     font-weight: 600;
     line-height: 1.2;
 }
 
 .cfs-slot-label {
     white-space: nowrap;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
 .cfs-slot-actions {
-    min-height: 40px;
-    padding: 3px 6px !important;
+    min-height: 44px;
+    padding: 4px 8px !important;
     gap: 1px;
 }
 
@@ -742,9 +743,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool {
     position: relative;
-    width: 46px;
-    height: 46px;
-    flex: 0 0 46px;
+    width: 58px;
+    height: 58px;
+    flex: 0 0 58px;
     margin-top: 1px;
 }
 
@@ -757,14 +758,15 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool-ring {
     inset: 0;
-    filter: saturate(1.22) brightness(1.06);
+    border: 2px solid currentColor;
+    filter: saturate(1.55) brightness(1.08);
     box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.34),
         inset 0 0 0 1px rgba(255, 255, 255, 0.26);
 }
 
 .cfs-spool-hole {
-    inset: 9px;
+    inset: 12px;
     background: var(--v-card-base, var(--v-background-base));
     box-shadow:
         0 0 0 2px rgba(127, 127, 127, 0.28),
@@ -772,12 +774,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-spool-core {
-    width: 8px;
-    height: 8px;
-    left: 19px;
-    top: 19px;
-    background: currentColor;
-    opacity: 0.55;
+    width: 12px;
+    height: 12px;
+    left: 23px;
+    top: 23px;
+    opacity: 1;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.28), 0 1px 4px rgba(0,0,0,.45);
+    filter: saturate(1.6) brightness(1.12);
 }
 
 .cfs-runout {
@@ -794,7 +797,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     opacity: 0.62;
 }
 
-@media (max-width: 480px) {
+@media (min-width: 1100px) {
+    .cfs-slot-grid {
+        grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
     .cfs-slot-grid {
         grid-template-columns: 1fr;
     }
