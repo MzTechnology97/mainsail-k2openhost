@@ -59,6 +59,9 @@ Slot assignments and RFID estimates are backend state, not browser state: they s
 
 ## Getting Started
 
+<img width="721" height="459" alt="image" src="https://github.com/user-attachments/assets/a6e1af74-ba30-47e0-8e49-311fedb4d1fd" />
+
+
 <img width="900" height="987" alt="image" src="https://github.com/user-attachments/assets/daad238c-0782-43da-816a-d09b9a8c926d" />
 
 <img width="903" height="847" alt="image" src="https://github.com/user-attachments/assets/3f11339a-56a2-403b-8701-56527337e5fc" />
