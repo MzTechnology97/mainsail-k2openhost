@@ -7,6 +7,15 @@
             <v-btn
                 icon
                 tile
+                :disabled="!box.driver_ready || printerIsPrinting"
+                :loading="loadings.includes('cfs_rfid_scan')"
+                title="Scan RFID in all populated CFS slots"
+                @click="scanAllRfid">
+                <v-icon>{{ mdiNfcSearchVariant }}</v-icon>
+            </v-btn>
+            <v-btn
+                icon
+                tile
                 :disabled="!canUnload"
                 :loading="loadings.includes('cfs_unload')"
                 :title="$t('Panels.MmuPanel.ButtonUnload')"
@@ -108,18 +117,23 @@
                                 <span>{{ slotTooltip(slot) }}</span>
                             </v-tooltip>
                             <div class="cfs-slot-details">
-                                <div class="d-flex align-center">
+                                <div class="d-flex align-center flex-wrap">
                                     <strong class="cfs-slot-label">{{ slotLabel(slot) }}</strong>
-                                    <v-chip v-if="slot.loaded" x-small color="primary" class="ml-2">
+                                    <v-chip v-if="slot.loaded" x-small color="primary" class="ml-2 mb-1">
                                         {{ $t('Panels.MmuPanel.Active') }}
                                     </v-chip>
+                                    <v-chip
+                                        v-if="slot.material || slot.filament_id || slotRfidManaged(slot)"
+                                        x-small
+                                        outlined
+                                        class="ml-2 mb-1">
+                                        {{ sourceLabel(slot) }}
+                                    </v-chip>
                                 </div>
-                                <div class="cfs-slot-material">{{ slotMaterialText(slot) }}</div>
+                                <div class="cfs-slot-name">{{ slotDisplayName(slot) }}</div>
+                                <div class="cfs-slot-meta text--secondary">{{ slotMeta(slot) }}</div>
                                 <div v-if="slotRemainingText(slot)" class="cfs-slot-remaining">
                                     {{ slotRemainingText(slot) }}
-                                </div>
-                                <div v-else-if="slot.present && !slot.material" class="cfs-slot-secondary">
-                                    Material not set
                                 </div>
                             </div>
                         </div>
@@ -141,11 +155,21 @@
                             v-else
                             small
                             text
-                            :disabled="readOnlyMode || printerIsPrinting"
-                            :loading="loadings.includes('cfs_rfid_read')"
-                            @click="sendCommand('RFID_READER_READ', 'cfs_rfid_read')">
+                            :disabled="printerIsPrinting"
+                            title="External spool / RFID settings"
+                            @click.stop="openSlotDialog(slot)">
                             <v-icon left small>{{ mdiNfc }}</v-icon>
                             RFID
+                        </v-btn>
+                        <v-btn
+                            v-if="!slot.external && slot.present"
+                            icon
+                            small
+                            :disabled="printerIsPrinting || !box.driver_ready"
+                            :loading="loadings.includes(`cfs_rfid_slot_${slot.index}`)"
+                            title="Reread RFID for this slot"
+                            @click.stop="forceRfidRead(slot)">
+                            <v-icon small>{{ mdiRefresh }}</v-icon>
                         </v-btn>
                         <v-btn
                             v-if="slot.rfid_unknown_code"
@@ -248,6 +272,7 @@
             :prefill-rfid-code="pendingRfidCode"
             :prefill-color="pendingRfidColor" />
         <cfs-slot-filament-dialog
+            :key="editingSlot ? `cfs-slot-dialog-${editingSlot.index}` : 'cfs-slot-dialog-empty'"
             :slot="editingSlot"
             v-model="showSlotDialog"
             :box="box" />
@@ -264,10 +289,12 @@ import {
     mdiDatabase,
     mdiEject,
     mdiNfc,
+    mdiNfcSearchVariant,
     mdiNfcVariant,
     mdiPackageVariantClosed,
     mdiPencil,
     mdiPlay,
+    mdiRefresh,
     mdiPrinter3dNozzle,
     mdiSwapHorizontal,
     mdiThermometer,
@@ -351,10 +378,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiDatabase = mdiDatabase
     mdiEject = mdiEject
     mdiNfc = mdiNfc
+    mdiNfcSearchVariant = mdiNfcSearchVariant
     mdiNfcVariant = mdiNfcVariant
     mdiPackageVariantClosed = mdiPackageVariantClosed
     mdiPencil = mdiPencil
     mdiPlay = mdiPlay
+    mdiRefresh = mdiRefresh
     mdiPrinter3dNozzle = mdiPrinter3dNozzle
     mdiSwapHorizontal = mdiSwapHorizontal
     mdiThermometer = mdiThermometer
@@ -470,10 +499,32 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return slot.external ? 'EXT' : `T${slot.index}`
     }
 
-    slotMaterialText(slot: CfsSlot): string {
+    slotDisplayName(slot: CfsSlot): string {
+        if (slot.name) return slot.name
         if (slot.material) return slot.material
         if (slot.external) return 'External spool'
         return slot.present ? 'Filament present' : 'Empty'
+    }
+
+    slotMeta(slot: CfsSlot): string {
+        if (slot.rfid_unknown_code) {
+            const color = slot.rfid_unknown_color ? ` · ${slot.rfid_unknown_color}` : ''
+            return `Unknown RFID · ${slot.rfid_unknown_code}${color}`
+        }
+        if (slot.material || slot.brand) {
+            const target = slot.target_temp ? `${slot.target_temp} °C` : ''
+            return [slot.material, slot.brand, target].filter(Boolean).join(' · ')
+        }
+        if (slot.external) return 'Manual / RFID'
+        return slot.present ? 'Material not set' : 'No filament'
+    }
+
+    sourceLabel(slot: CfsSlot): string {
+        if (slot.rfid_unknown_code) return 'RFID ?'
+        if (this.slotRfidManaged(slot)) return 'RFID'
+        if (slot.source === 'spoolman') return 'Spoolman'
+        if (slot.source === 'library' || slot.filament_id) return 'Library'
+        return 'Manual'
     }
 
     slotTooltip(slot: CfsSlot): string {
@@ -516,14 +567,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         if (percent === null) {
             return {
                 background: color,
-                boxShadow: `inset 0 0 0 1px rgba(255,255,255,.22), 0 0 0 1px ${color}`,
+                boxShadow: `inset 0 0 0 1px rgba(255,255,255,.26), 0 0 0 1px rgba(127,127,127,.5)`,
             }
         }
 
-        const degrees = Math.max(0, Math.min(360, percent * 3.6))
         return {
-            background: `conic-gradient(from -90deg, ${color} 0deg ${degrees}deg, #4B4B4B ${degrees}deg 360deg)`,
-            boxShadow: `inset 0 0 0 1px rgba(255,255,255,.28), 0 0 0 1px rgba(127,127,127,.45)`,
+            background: `conic-gradient(${color} 0% ${percent}%, rgba(127,127,127,.28) ${percent}% 100%)`,
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,.26), 0 0 0 1px rgba(127,127,127,.5)`,
         }
     }
 
@@ -563,10 +613,20 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     openSlotDialog(slot: CfsSlot): void {
         this.editingSlot = { ...slot }
-        this.showSlotDialog = false
-        this.$nextTick(() => {
-            this.showSlotDialog = true
-        })
+        this.showSlotDialog = true
+    }
+
+    scanAllRfid(): void {
+        if (!this.box.driver_ready || this.printerIsPrinting) return
+        this.sendCommand('BOX_RFID_SCAN', 'cfs_rfid_scan')
+    }
+
+    forceRfidRead(slot: CfsSlot): void {
+        if (!this.box.driver_ready || this.printerIsPrinting || slot.external || !slot.present) return
+        this.sendCommand(
+            `_BOX_RFID_READ_SLOT SLOT=${slot.index}`,
+            `cfs_rfid_slot_${slot.index}`
+        )
     }
 
     canSelectSlot(slot: CfsSlot): boolean {
@@ -608,27 +668,27 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 <style scoped>
 .cfs-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
     width: 100%;
     align-items: stretch;
 }
 
 .cfs-slot-card {
     min-width: 0;
-    min-height: 142px;
-    border-radius: 9px !important;
+    min-height: 148px;
+    border-radius: 8px !important;
     overflow: hidden;
 }
 
 .cfs-slot-body {
-    min-height: 94px;
-    padding: 13px 14px !important;
+    min-height: 96px;
+    padding: 11px 10px !important;
 }
 
 .cfs-slot-main {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     min-width: 0;
 }
 
@@ -646,16 +706,23 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-slot-name {
-    font-size: 0.92rem !important;
+    font-size: 0.9rem !important;
     font-weight: 600;
     margin-top: 2px;
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .cfs-slot-meta {
     margin-top: 2px;
-    font-size: 0.75rem !important;
-    line-height: 1.3;
+    font-size: 0.73rem !important;
+    line-height: 1.25;
+}
+
+.cfs-slot-remaining {
+    margin-top: 3px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.2;
 }
 
 .cfs-slot-label {
@@ -675,10 +742,10 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool {
     position: relative;
-    width: 52px;
-    height: 52px;
-    flex: 0 0 52px;
-    margin-top: 2px;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    margin-top: 1px;
 }
 
 .cfs-spool-ring,
@@ -690,26 +757,27 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool-ring {
     inset: 0;
+    filter: saturate(1.22) brightness(1.06);
     box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.34),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+        inset 0 0 0 1px rgba(255, 255, 255, 0.26);
 }
 
 .cfs-spool-hole {
-    inset: 13px;
+    inset: 9px;
     background: var(--v-card-base, var(--v-background-base));
     box-shadow:
-        0 0 0 2px rgba(127, 127, 127, 0.32),
+        0 0 0 2px rgba(127, 127, 127, 0.28),
         inset 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .cfs-spool-core {
-    width: 7px;
-    height: 7px;
-    left: 22.5px;
-    top: 22.5px;
+    width: 8px;
+    height: 8px;
+    left: 19px;
+    top: 19px;
     background: currentColor;
-    opacity: 0.82;
+    opacity: 0.55;
 }
 
 .cfs-runout {
@@ -726,13 +794,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     opacity: 0.62;
 }
 
-@media (max-width: 680px) {
-    .cfs-slot-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 460px) {
+@media (max-width: 480px) {
     .cfs-slot-grid {
         grid-template-columns: 1fr;
     }
