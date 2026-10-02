@@ -15,6 +15,10 @@ export interface CfsSlot {
     rfid_unknown_code: string
     rfid_unknown_color: string
     rfid_percent: number | null
+    rfid_reported_percent: number | null
+    rfid_estimated_percent: number | null
+    rfid_total_m: number | null
+    rfid_remaining_m: number | null
     rfid_reserve: string
     external: boolean
 }
@@ -27,7 +31,31 @@ export interface CfsFilament {
     name: string
     target_temp: number | null
     rfid_code: string
+    rfid_codes?: string[]
+    aliases?: string[]
     spoolman_id: number | null
+}
+
+export interface CfsRunoutChainItem {
+    slot: number
+    percent: number | null
+    rfid: boolean
+}
+
+export interface CfsRunout {
+    loaded_slot: number
+    chain: number[]
+    chain_detail?: CfsRunoutChainItem[]
+    sequence?: number[]
+    strategy?: string
+}
+
+export interface CfsRunoutGroup {
+    material: string
+    color: string
+    slots: number[]
+    detail: CfsRunoutChainItem[]
+    strategy: string
 }
 
 export interface CfsMaterial {
@@ -128,7 +156,8 @@ export interface CfsBoxState {
     slots: CfsSlot[]
     materials: Record<string, CfsMaterial>
     filaments: Record<string, CfsFilament>
-    runout: unknown
+    runout: CfsRunout | null
+    runout_groups: CfsRunoutGroup[]
     runout_swap_enabled: boolean
     unload_after_print_enabled: boolean
     rfid_insert_reading_enabled: boolean

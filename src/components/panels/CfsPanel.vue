@@ -97,7 +97,9 @@
                     :class="['cfs-slot-card', slotCardClass(slot)]">
                     <v-card-text class="pa-3">
                         <div class="cfs-slot-main">
-                            <div class="cfs-spool mr-3" :style="{ borderColor: slotColor(slot) }">
+                            <div class="cfs-spool mr-3">
+                                <div class="cfs-spool-ring" :style="spoolRingStyle(slot)" />
+                                <div class="cfs-spool-hole" />
                                 <div class="cfs-spool-core" />
                             </div>
                             <div class="cfs-slot-details">
@@ -116,15 +118,11 @@
                                 </div>
                                 <div class="text-truncate body-2 font-weight-medium">{{ slotDisplayName(slot) }}</div>
                                 <div class="text--secondary caption text-truncate">{{ slotMeta(slot) }}</div>
+                                <div v-if="slot.rfid_percent !== null" class="caption font-weight-medium">
+                                    {{ slotRemainingText(slot) }}
+                                </div>
                             </div>
                         </div>
-
-                        <v-progress-linear
-                            v-if="slot.rfid_percent !== null"
-                            class="mt-3"
-                            height="5"
-                            rounded
-                            :value="slot.rfid_percent" />
                         <div v-if="slot.spoolman_id !== null" class="caption text--secondary mt-2">
                             Spoolman #{{ slot.spoolman_id }}
                         </div>
@@ -153,6 +151,16 @@
                             RFID
                         </v-btn>
                         <v-btn
+                            v-if="!slot.external && slot.present"
+                            icon
+                            small
+                            :disabled="readOnlyMode || printerIsPrinting"
+                            :loading="loadings.includes(`cfs_rfid_slot_${slot.index}`)"
+                            title="Force RFID reread"
+                            @click="forceRfidRead(slot)">
+                            <v-icon small>{{ mdiRefresh }}</v-icon>
+                        </v-btn>
+                        <v-btn
                             v-if="slot.rfid_unknown_code"
                             small
                             text
@@ -177,6 +185,39 @@
                         <v-icon v-else small color="grey">{{ mdiCircleOutline }}</v-icon>
                     </v-card-actions>
                 </v-card>
+            </div>
+
+            <div v-if="box.runout_swap_enabled && runoutSequenceSlots.length" class="cfs-runout mt-3 pa-2">
+                <div class="caption font-weight-bold mb-1">Active runout swap sequence</div>
+                <div class="d-flex flex-wrap align-center">
+                    <template v-for="(slot, index) in runoutSequenceSlots">
+                        <v-chip :key="`runout-${slot.index}`" x-small outlined>
+                            T{{ slot.index }}
+                            <template v-if="slot.rfid_percent !== null"> · {{ formatPercent(slot.rfid_percent) }}</template>
+                        </v-chip>
+                        <span v-if="index < runoutSequenceSlots.length - 1" :key="`arrow-${slot.index}`" class="mx-1">→</span>
+                    </template>
+                    <span v-if="runoutUsesRemaining" class="ml-2 caption text--secondary">
+                        lowest RFID remaining first
+                    </span>
+                </div>
+            </div>
+
+            <div v-if="box.runout_swap_enabled && box.runout_groups.length" class="cfs-runout mt-2 pa-2">
+                <div class="caption font-weight-bold mb-1">Recognized runout swap groups</div>
+                <div v-for="group in box.runout_groups" :key="`${group.material}-${group.color}`" class="d-flex flex-wrap align-center mb-1">
+                    <span class="caption mr-2">
+                        {{ group.material }} · {{ group.color }}
+                        <template v-if="group.strategy === 'lowest_remaining_first'"> · lowest remaining first</template>
+                    </span>
+                    <template v-for="(item, index) in group.detail">
+                        <v-chip :key="`group-${group.material}-${item.slot}`" x-small outlined>
+                            T{{ item.slot }}
+                            <template v-if="item.percent !== null"> · {{ formatPercent(item.percent) }}</template>
+                        </v-chip>
+                        <span v-if="index < group.detail.length - 1" :key="`group-arrow-${group.material}-${item.slot}`" class="mx-1">→</span>
+                    </template>
+                </div>
             </div>
 
             <v-divider class="my-3" />
@@ -227,6 +268,7 @@ import {
     mdiPencil,
     mdiPlay,
     mdiPrinter3dNozzle,
+    mdiRefresh,
     mdiSwapHorizontal,
     mdiThermometer,
     mdiTransitConnectionVariant,
@@ -257,6 +299,7 @@ const EMPTY_BOX: CfsBoxState = {
     materials: {},
     filaments: {},
     runout: null,
+    runout_groups: [],
     runout_swap_enabled: false,
     unload_after_print_enabled: false,
     rfid_insert_reading_enabled: false,
@@ -313,6 +356,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiPencil = mdiPencil
     mdiPlay = mdiPlay
     mdiPrinter3dNozzle = mdiPrinter3dNozzle
+    mdiRefresh = mdiRefresh
     mdiSwapHorizontal = mdiSwapHorizontal
     mdiThermometer = mdiThermometer
     mdiTransitConnectionVariant = mdiTransitConnectionVariant
@@ -355,6 +399,17 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return typeof this.box.humidity_pct === 'number' && Number.isFinite(this.box.humidity_pct)
             ? `${this.box.humidity_pct.toFixed(0)}% RH`
             : '-- % RH'
+    }
+
+    get runoutSequenceSlots(): CfsSlot[] {
+        const sequence = this.box.runout?.sequence ?? []
+        return sequence
+            .map((index) => this.box.slots.find((slot) => slot.index === index))
+            .filter((slot): slot is CfsSlot => !!slot)
+    }
+
+    get runoutUsesRemaining(): boolean {
+        return this.box.runout?.strategy === 'lowest_remaining_first'
     }
 
     get temperatureHint(): string {
@@ -440,6 +495,32 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return /^#[0-9a-f]{6}$/i.test(slot.color) ? slot.color : '#757575'
     }
 
+    formatPercent(value: number): string {
+        return `${Math.max(0, Math.min(100, value)).toFixed(value < 10 ? 1 : 0)}%`
+    }
+
+    slotRemainingText(slot: CfsSlot): string {
+        if (slot.rfid_percent === null) return ''
+        const parts = [this.formatPercent(slot.rfid_percent)]
+        if (slot.rfid_remaining_m !== null) parts.push(`${slot.rfid_remaining_m.toFixed(1)} m est.`)
+        if (
+            slot.rfid_reported_percent !== null &&
+            Math.abs(slot.rfid_reported_percent - slot.rfid_percent) >= 1
+        ) {
+            parts.push(`CFS ${this.formatPercent(slot.rfid_reported_percent)}`)
+        }
+        return parts.join(' · ')
+    }
+
+    spoolRingStyle(slot: CfsSlot): Record<string, string> {
+        const color = this.slotColor(slot)
+        if (slot.rfid_percent === null) return { background: color }
+        const percent = Math.max(0, Math.min(100, slot.rfid_percent))
+        return {
+            background: `conic-gradient(${color} 0% ${percent}%, rgba(127,127,127,.28) ${percent}% 100%)`,
+        }
+    }
+
     slotCardClass(slot: CfsSlot): Record<string, boolean> {
         return {
             'cfs-slot-loaded': slot.loaded,
@@ -488,6 +569,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     selectSlot(slot: CfsSlot): void {
         if (!this.canSelectSlot(slot)) return
         this.sendCommand(`T${slot.index}`, `cfs_slot_${slot.index}`)
+    }
+
+    forceRfidRead(slot: CfsSlot): void {
+        if (this.readOnlyMode || this.printerIsPrinting || slot.external || !slot.present) return
+        this.sendCommand(
+            `_BOX_RFID_READ_SLOT SLOT=${slot.index}`,
+            `cfs_rfid_slot_${slot.index}`
+        )
     }
 
     toggleSetting(
@@ -542,22 +631,40 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-spool {
-    width: 42px;
-    height: 42px;
-    border: 7px solid;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    width: 44px;
+    height: 44px;
     flex: 0 0 auto;
+}
+
+.cfs-spool-ring,
+.cfs-spool-hole,
+.cfs-spool-core {
+    position: absolute;
+    border-radius: 50%;
+}
+
+.cfs-spool-ring {
+    inset: 0;
+}
+
+.cfs-spool-hole {
+    inset: 8px;
+    background: var(--v-card-base, var(--v-background-base));
 }
 
 .cfs-spool-core {
     width: 10px;
     height: 10px;
-    border-radius: 50%;
+    left: 17px;
+    top: 17px;
     background: currentColor;
-    opacity: 0.35;
+    opacity: 0.45;
+}
+
+.cfs-runout {
+    border: 1px solid rgba(127, 127, 127, 0.28);
+    border-radius: 4px;
 }
 
 .cfs-slot-loaded {
