@@ -500,7 +500,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     slotDisplayName(slot: CfsSlot): string {
-        if (slot.name) return slot.name
         if (slot.material) return slot.material
         if (slot.external) return 'External spool'
         return slot.present ? 'Filament present' : 'Empty'
@@ -508,13 +507,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     slotMeta(slot: CfsSlot): string {
         if (slot.rfid_unknown_code) {
-            const color = slot.rfid_unknown_color ? ` · ${slot.rfid_unknown_color}` : ''
-            return `Unknown RFID · ${slot.rfid_unknown_code}${color}`
+            return `Unknown RFID · ${slot.rfid_unknown_code}`
         }
-        if (slot.material || slot.brand) {
-            const target = slot.target_temp ? `${slot.target_temp} °C` : ''
-            return [slot.material, slot.brand, target].filter(Boolean).join(' · ')
-        }
+        if (slot.material) return ''
         if (slot.external) return 'Manual / RFID'
         return slot.present ? 'Material not set' : 'No filament'
     }
@@ -669,22 +664,22 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 <style scoped>
 .cfs-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
     width: 100%;
     align-items: stretch;
 }
 
 .cfs-slot-card {
     min-width: 0;
-    min-height: 166px;
+    min-height: 142px;
     border-radius: 8px !important;
     overflow: hidden;
 }
 
 .cfs-slot-body {
-    min-height: 116px;
-    padding: 14px 14px 12px !important;
+    min-height: 94px;
+    padding: 10px 9px 8px !important;
 }
 
 .cfs-slot-main {
@@ -701,13 +696,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-slot-name,
 .cfs-slot-meta {
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cfs-slot-name {
-    font-size: 0.98rem !important;
+    font-size: 0.92rem !important;
     font-weight: 650;
     margin-top: 2px;
     line-height: 1.2;
@@ -715,8 +710,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-slot-meta {
     margin-top: 2px;
-    font-size: 0.80rem !important;
-    line-height: 1.25;
+    font-size: 0.76rem !important;
+    line-height: 1.2;
 }
 
 .cfs-slot-remaining {
@@ -743,9 +738,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool {
     position: relative;
-    width: 58px;
-    height: 58px;
-    flex: 0 0 58px;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
     margin-top: 1px;
 }
 
@@ -766,7 +761,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-spool-hole {
-    inset: 12px;
+    inset: 10px;
     background: var(--v-card-base, var(--v-background-base));
     box-shadow:
         0 0 0 2px rgba(127, 127, 127, 0.28),
@@ -774,10 +769,10 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-spool-core {
-    width: 12px;
-    height: 12px;
-    left: 23px;
-    top: 23px;
+    width: 10px;
+    height: 10px;
+    left: 18px;
+    top: 18px;
     opacity: 1;
     box-shadow: 0 0 0 2px rgba(255,255,255,.28), 0 1px 4px rgba(0,0,0,.45);
     filter: saturate(1.6) brightness(1.12);
@@ -797,13 +792,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     opacity: 0.62;
 }
 
-@media (min-width: 1100px) {
+@media (max-width: 560px) {
     .cfs-slot-grid {
-        grid-template-columns: repeat(auto-fit, minmax(275px, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 360px) {
     .cfs-slot-grid {
         grid-template-columns: 1fr;
     }
