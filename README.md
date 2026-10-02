@@ -53,14 +53,13 @@ Custom filament IDs may use the same five-character material IDs used by DnG-Cra
 
 The fork also ships the full Creality + Generic K2-RFID system catalog exposed by the K2-OpenHost backend. The filament library can create a custom profile from one of those read-only presets, including material type, nozzle range and pressure-advance metadata. Material is selected from the known catalog rather than typed freely. Non-RFID CFS slots use a dedicated Brand → Type → Profile → Color dialog, with the DnG-Crafts preset color palette plus a full custom color picker.
 
-The dashboard keeps CFS cards compact and responsive, wraps filament names and metadata instead of clipping them, and renders spool colors as saturated solid swatches. RFID remaining percentage and estimated metres are shown as text so depletion tracking never desaturates or hides the actual spool color.
+The dashboard keeps CFS cards readable and responsive: each slot shows only the material type plus remaining percentage/metres, while the full filament name is available as a hover tooltip. RFID slots use a vivid spool indicator whose colored sector follows the remaining percentage; clicking **RFID** opens the complete read-only database metadata. Untagged slots use the pencil editor with Brand → Type → Profile → Color selection and an explicit **Reset slot** action.
 
-Slot assignments and RFID estimates are backend state, not browser state: they survive Mainsail reloads and printer restarts through the configured K2-OpenHost `filament_box.json`. The normal Print dialog and direct Orca/Moonraker starts use the same backend auto-mapper; exact profile matches win, Generic profiles are safe fallbacks when a slicer preset name is unavailable, and unresolved multicolor jobs are blocked rather than guessing.
+Slot assignments and RFID estimates are backend state, not browser state: they survive Mainsail reloads and printer restarts through the configured K2-OpenHost `filament_box.json`. A live slot removal clears only that bay assignment; confirmed runout also clears the depleted source after persisting its remaining estimate at zero. Startup restores occupied cached slots from JSON after one CFS presence-mask query and does not rescan every RFID tag unless the optional startup reread setting is explicitly enabled. The normal Print dialog and direct Orca/Moonraker starts use the same backend auto-mapper; exact profile matches win, Generic profiles are safe fallbacks when a slicer preset name is unavailable, and unresolved multicolor jobs are blocked rather than guessing.
 
 ## Getting Started
 
 <img width="721" height="459" alt="image" src="https://github.com/user-attachments/assets/a6e1af74-ba30-47e0-8e49-311fedb4d1fd" />
-
 
 <img width="900" height="987" alt="image" src="https://github.com/user-attachments/assets/daad238c-0782-43da-816a-d09b9a8c926d" />
 

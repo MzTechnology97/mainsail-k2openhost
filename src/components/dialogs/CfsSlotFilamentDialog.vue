@@ -1,18 +1,48 @@
 <template>
-    <v-dialog :value="value" max-width="650" scrollable @input="setOpen">
+    <v-dialog :value="value" max-width="680" scrollable eager @input="setOpen">
         <v-card>
             <v-card-title class="d-flex align-center">
-                <v-icon class="mr-2">{{ mdiSpool }}</v-icon>
-                {{ slot ? slotLabel(slot) : 'CFS slot' }} filament
+                <v-icon class="mr-2">{{ rfidManaged ? mdiNfcVariant : mdiSpool }}</v-icon>
+                {{ slot ? slotLabel(slot) : 'CFS slot' }} · {{ rfidManaged ? 'RFID filament' : 'manual filament' }}
                 <v-spacer />
                 <v-btn icon @click="close"><v-icon>{{ mdiClose }}</v-icon></v-btn>
             </v-card-title>
             <v-divider />
 
             <v-card-text v-if="slot" class="pt-5">
-                <v-alert v-if="slot.rfid_active" dense text type="info">
-                    This slot is controlled by a live RFID tag. Force a reread or remove the RFID spool before assigning a manual profile.
-                </v-alert>
+                <template v-if="rfidManaged">
+                    <v-alert dense text type="info" class="mb-4">
+                        RFID filament data is read-only and inherited from the filament database.
+                    </v-alert>
+
+                    <div class="d-flex align-center mb-4">
+                        <div class="cfs-rfid-swatch mr-3" :style="{ backgroundColor: rfidColor }" />
+                        <div>
+                            <div class="text-h6">{{ slot.material || 'Unknown material' }}</div>
+                            <div class="text--secondary">{{ rfidName }}</div>
+                        </div>
+                    </div>
+
+                    <v-simple-table dense>
+                        <tbody>
+                            <tr><th>Material</th><td>{{ slot.material || '—' }}</td></tr>
+                            <tr><th>Full name</th><td>{{ rfidName }}</td></tr>
+                            <tr><th>Brand</th><td>{{ rfidBrand }}</td></tr>
+                            <tr>
+                                <th>Color</th>
+                                <td>
+                                    <span class="cfs-rfid-mini-swatch mr-2" :style="{ backgroundColor: rfidColor }" />
+                                    <code>{{ rfidColor }}</code>
+                                </td>
+                            </tr>
+                            <tr><th>RFID code</th><td><code>{{ slot.rfid_code || '—' }}</code></td></tr>
+                            <tr><th>Filament ID</th><td><code>{{ slot.filament_id || '—' }}</code></td></tr>
+                            <tr><th>Nozzle temperature</th><td>{{ rfidTemperatureRange }}</td></tr>
+                            <tr><th>Pressure advance</th><td>{{ rfidPressureAdvanceText }}</td></tr>
+                            <tr><th>Remaining</th><td>{{ rfidRemainingText }}</td></tr>
+                        </tbody>
+                    </v-simple-table>
+                </template>
 
                 <template v-else>
                     <v-row dense>
@@ -81,21 +111,29 @@
                     </v-row>
 
                     <v-alert v-if="selectedProfile && selectedProfile.system" dense text type="info" class="mt-4 mb-0">
-                        System preset from the Creality / Generic K2-RFID catalog. The selected color is stored on this slot only.
+                        System preset from the filament database. The selected color is stored on this slot only.
                     </v-alert>
                 </template>
             </v-card-text>
 
             <v-divider />
             <v-card-actions>
-                <v-btn v-if="slot && !slot.rfid_active" text color="error" @click="clearSlot">
-                    Clear slot
+                <v-btn v-if="slot && !rfidManaged" text color="error" @click="clearSlot">
+                    Reset slot
+                </v-btn>
+                <v-btn
+                    v-if="slot && rfidManaged && !slot.external"
+                    text
+                    color="primary"
+                    :disabled="printerIsPrinting"
+                    @click="rereadRfid">
+                    <v-icon left small>{{ mdiRefresh }}</v-icon>
+                    Reread RFID
                 </v-btn>
                 <v-spacer />
-                <v-btn text @click="close">Back</v-btn>
-                <v-btn v-if="slot && !slot.rfid_active" text @click="resetFromSlot">Reset</v-btn>
-                <v-btn v-if="slot && !slot.rfid_active" color="primary" :disabled="!canSave" @click="save">
-                    Okay
+                <v-btn text @click="close">{{ rfidManaged ? $t('Buttons.Close') : 'Cancel' }}</v-btn>
+                <v-btn v-if="slot && !rfidManaged" color="primary" :disabled="!canSave" @click="save">
+                    Save
                 </v-btn>
             </v-card-actions>
         </v-card>
@@ -107,7 +145,7 @@ import { Component, Mixins, Prop, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
-import { mdiClose, mdiPackageVariantClosed } from '@mdi/js'
+import { mdiClose, mdiNfcVariant, mdiPackageVariantClosed, mdiRefresh } from '@mdi/js'
 
 interface SelectItem {
     text: string
@@ -121,7 +159,9 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     @Prop({ type: Object, default: null }) readonly slot!: CfsSlot | null
 
     mdiClose = mdiClose
+    mdiNfcVariant = mdiNfcVariant
     mdiSpool = mdiPackageVariantClosed
+    mdiRefresh = mdiRefresh
 
     selectedId: string | null = null
     material = ''
@@ -133,6 +173,51 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
             if (!!a.system !== !!b.system) return a.system ? -1 : 1
             return (a.name || a.id).localeCompare(b.name || b.id)
         })
+    }
+
+    get rfidManaged(): boolean {
+        return !!this.slot && (this.slot.rfid_active || (this.slot.present && this.slot.source === 'rfid'))
+    }
+
+    get rfidProfile(): CfsFilament | null {
+        return this.findMatchingProfile()
+    }
+
+    get rfidName(): string {
+        return this.rfidProfile?.name || this.slot?.name || '—'
+    }
+
+    get rfidBrand(): string {
+        return this.rfidProfile?.brand || this.slot?.brand || '—'
+    }
+
+    get rfidColor(): string {
+        return this.validColor(this.slot?.color || this.rfidProfile?.color || '#808080')
+    }
+
+    get rfidTemperatureRange(): string {
+        const item = this.rfidProfile
+        if (item?.min_temp !== null && item?.min_temp !== undefined &&
+            item?.max_temp !== null && item?.max_temp !== undefined) {
+            return `${item.min_temp} ~ ${item.max_temp} °C`
+        }
+        const target = item?.target_temp ?? this.slot?.target_temp
+        return target !== null && target !== undefined ? `${target} °C` : '—'
+    }
+
+    get rfidPressureAdvanceText(): string {
+        const value = this.rfidProfile?.pressure_advance ?? this.slot?.pressure_advance
+        return typeof value === 'number' && Number.isFinite(value)
+            ? value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+            : '—'
+    }
+
+    get rfidRemainingText(): string {
+        if (!this.slot || this.slot.rfid_percent === null) return '—'
+        const percent = Math.max(0, Math.min(100, this.slot.rfid_percent))
+        const parts = [`${percent.toFixed(percent < 10 ? 1 : 0)}%`]
+        if (this.slot.rfid_remaining_m !== null) parts.push(`${this.slot.rfid_remaining_m.toFixed(1)} m`)
+        return parts.join(' · ')
     }
 
     get brandOptions(): string[] {
@@ -186,7 +271,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     get canSave(): boolean {
-        return !!this.slot && !this.slot.rfid_active && !!this.selectedProfile
+        return !!this.slot && !this.rfidManaged && !!this.selectedProfile
     }
 
     slotLabel(slot: CfsSlot): string {
@@ -254,8 +339,14 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     clearSlot(): void {
-        if (!this.slot || this.slot.rfid_active) return
+        if (!this.slot || this.rfidManaged) return
         this.send(`_BOX_SLOT_CLEAR SLOT=${this.slot.index}`)
+        this.close()
+    }
+
+    rereadRfid(): void {
+        if (!this.slot || !this.rfidManaged || this.slot.external || this.printerIsPrinting) return
+        this.send(`_BOX_RFID_READ_SLOT SLOT=${this.slot.index}`)
         this.close()
     }
 
@@ -266,6 +357,10 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     send(script: string): void {
         this.$store.dispatch('server/addEvent', { message: script, type: 'command' })
         this.$socket.emit('printer.gcode.script', { script })
+    }
+
+    mounted(): void {
+        if (this.value) this.resetFromSlot()
     }
 
     @Watch('value')
@@ -279,3 +374,28 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 }
 </script>
+
+<style scoped>
+.cfs-rfid-swatch {
+    width: 50px;
+    height: 50px;
+    flex: 0 0 50px;
+    border-radius: 50%;
+    border: 2px solid rgba(127, 127, 127, 0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.cfs-rfid-mini-swatch {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    border-radius: 50%;
+    border: 1px solid rgba(127, 127, 127, 0.45);
+}
+
+::v-deep .v-data-table th {
+    width: 38%;
+    white-space: nowrap;
+}
+</style>
