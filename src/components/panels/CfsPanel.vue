@@ -95,9 +95,9 @@
                     :key="slot.index"
                     outlined
                     :class="['cfs-slot-card', slotCardClass(slot)]">
-                    <v-card-text class="pa-3">
+                    <v-card-text class="cfs-slot-body pa-2">
                         <div class="cfs-slot-main">
-                            <div class="cfs-spool mr-3">
+                            <div class="cfs-spool mr-2">
                                 <div class="cfs-spool-ring" :style="spoolRingStyle(slot)" />
                                 <div class="cfs-spool-hole" />
                                 <div class="cfs-spool-core" />
@@ -116,8 +116,8 @@
                                         {{ sourceLabel(slot) }}
                                     </v-chip>
                                 </div>
-                                <div class="text-truncate body-2 font-weight-medium">{{ slotDisplayName(slot) }}</div>
-                                <div class="text--secondary caption text-truncate">{{ slotMeta(slot) }}</div>
+                                <div class="body-2 font-weight-medium cfs-slot-name">{{ slotDisplayName(slot) }}</div>
+                                <div class="text--secondary caption cfs-slot-meta">{{ slotMeta(slot) }}</div>
                                 <div v-if="slot.rfid_percent !== null" class="caption font-weight-medium">
                                     {{ slotRemainingText(slot) }}
                                 </div>
@@ -173,11 +173,12 @@
                         </v-btn>
                         <v-btn
                             v-else
+                            icon
                             small
-                            text
+                            class="cfs-edit-slot"
                             :disabled="slot.rfid_active || printerIsPrinting"
                             :title="slot.rfid_active ? 'Managed by live RFID' : 'Edit filament metadata'"
-                            @click.stop="editSlot(slot)">
+                            @click="openSlotEditor(slot)">
                             <v-icon small>{{ mdiPencil }}</v-icon>
                         </v-btn>
                         <v-spacer />
@@ -251,10 +252,11 @@
             :prefill-color="pendingRfidColor" />
         <cfs-slot-filament-dialog
             v-if="editingSlot"
-            :key="`cfs-slot-dialog-${editingSlot.index}`"
+            :key="`cfs-slot-editor-${editingSlot.index}-${slotEditorNonce}`"
             :slot="editingSlot"
-            v-model="showSlotDialog"
-            :box="box" />
+            :value="showSlotDialog"
+            :box="box"
+            @input="setSlotDialogOpen" />
     </panel>
 </template>
 
@@ -371,6 +373,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     showFilamentManager = false
     showSlotDialog = false
     editingSlot: CfsSlot | null = null
+    slotEditorNonce = 0
     pendingRfidCode = ''
     pendingRfidColor = ''
 
@@ -519,10 +522,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     spoolRingStyle(slot: CfsSlot): Record<string, string> {
         const color = this.slotColor(slot)
-        if (slot.rfid_percent === null) return { background: color }
-        const percent = Math.max(0, Math.min(100, slot.rfid_percent))
         return {
-            background: `conic-gradient(${color} 0% ${percent}%, rgba(127,127,127,.28) ${percent}% 100%)`,
+            background: color,
+            boxShadow: `inset 0 0 0 1px rgba(255,255,255,.18), 0 0 0 1px ${color}`,
         }
     }
 
@@ -554,10 +556,23 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.showFilamentManager = true
     }
 
-    editSlot(slot: CfsSlot): void {
+    openSlotEditor(slot: CfsSlot): void {
         if (slot.rfid_active || this.printerIsPrinting) return
-        this.editingSlot = slot
-        this.showSlotDialog = true
+        this.showSlotDialog = false
+        this.$nextTick(() => {
+            this.editingSlot = { ...slot }
+            this.slotEditorNonce += 1
+            this.showSlotDialog = true
+        })
+    }
+
+    setSlotDialogOpen(open: boolean): void {
+        this.showSlotDialog = open
+        if (!open) {
+            this.$nextTick(() => {
+                this.editingSlot = null
+            })
+        }
     }
 
     canSelectSlot(slot: CfsSlot): boolean {
@@ -607,13 +622,18 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 <style scoped>
 .cfs-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    gap: 6px;
     width: 100%;
 }
 
 .cfs-slot-card {
     min-width: 0;
+    min-height: 112px;
+}
+
+.cfs-slot-body {
+    min-height: 70px;
 }
 
 .cfs-slot-main {
@@ -627,19 +647,44 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     min-width: 0;
 }
 
+.cfs-slot-name,
+.cfs-slot-meta {
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    line-height: 1.4;
+}
+
+.cfs-slot-name {
+    font-size: 0.82rem !important;
+    margin-top: 1px;
+    line-height: 1.2;
+}
+
+.cfs-slot-meta {
+    margin-top: 0;
+    font-size: 0.68rem !important;
+    line-height: 1.2;
+}
+
 .cfs-slot-label {
     white-space: nowrap;
 }
 
 .cfs-slot-actions {
-    min-height: 44px;
+    min-height: 34px;
+    padding: 2px 4px !important;
+}
+
+.cfs-slot-actions .v-btn {
+    min-width: 30px !important;
 }
 
 .cfs-spool {
     position: relative;
-    width: 44px;
-    height: 44px;
-    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
 }
 
 .cfs-spool-ring,
@@ -651,20 +696,23 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-spool-ring {
     inset: 0;
+    filter: saturate(1.95) brightness(1.18) contrast(1.08);
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
 
 .cfs-spool-hole {
-    inset: 8px;
+    inset: 10px;
     background: var(--v-card-base, var(--v-background-base));
+    box-shadow: 0 0 0 2px rgba(127, 127, 127, 0.28);
 }
 
 .cfs-spool-core {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
     left: 17px;
     top: 17px;
     background: currentColor;
-    opacity: 0.45;
+    opacity: 0.8;
 }
 
 .cfs-runout {
@@ -680,7 +728,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     opacity: 0.55;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 740px) {
+    .cfs-slot-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 430px) {
     .cfs-slot-grid {
         grid-template-columns: 1fr;
     }

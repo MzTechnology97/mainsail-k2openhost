@@ -7,6 +7,7 @@ export interface CfsSlot {
     brand: string
     name: string
     target_temp: number | null
+    pressure_advance: number | null
     spoolman_id: number | null
     filament_id: string
     source: string
@@ -30,10 +31,14 @@ export interface CfsFilament {
     brand: string
     name: string
     target_temp: number | null
+    min_temp: number | null
+    max_temp: number | null
+    pressure_advance: number | null
     rfid_code: string
     rfid_codes?: string[]
     aliases?: string[]
     spoolman_id: number | null
+    system: boolean
 }
 
 export interface CfsRunoutChainItem {
