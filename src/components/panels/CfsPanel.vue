@@ -1,6 +1,9 @@
 <template>
     <panel v-if="showPanel" :icon="mdiPackageVariantClosed" :title="title" :collapsible="true" card-class="cfs-panel">
         <template #buttons>
+            <v-btn icon tile title="Filament library" @click="openFilamentManager">
+                <v-icon>{{ mdiDatabase }}</v-icon>
+            </v-btn>
             <v-btn
                 icon
                 tile
@@ -68,6 +71,9 @@
                     {{ humidityText }}
                 </v-chip>
                 <v-chip small class="mr-2 mb-1" outlined>API v{{ box.api_version }}</v-chip>
+                <v-chip v-if="box.filament_inventory_version" small class="mr-2 mb-1" outlined>
+                    Inventory v{{ box.filament_inventory_version }}
+                </v-chip>
             </div>
 
             <v-alert v-if="box.recovery.blocked" dense text type="warning" class="mb-3">
@@ -99,6 +105,13 @@
                                     <strong class="cfs-slot-label">{{ slotLabel(slot) }}</strong>
                                     <v-chip v-if="slot.loaded" x-small color="primary" class="ml-2">
                                         {{ $t('Panels.MmuPanel.Active') }}
+                                    </v-chip>
+                                    <v-chip
+                                        v-if="slot.material || slot.filament_id || slot.rfid_active"
+                                        x-small
+                                        outlined
+                                        class="ml-2">
+                                        {{ sourceLabel(slot) }}
                                     </v-chip>
                                 </div>
                                 <div class="text-truncate body-2 font-weight-medium">{{ slotDisplayName(slot) }}</div>
@@ -139,6 +152,26 @@
                             <v-icon left small>{{ mdiNfc }}</v-icon>
                             RFID
                         </v-btn>
+                        <v-btn
+                            v-if="slot.rfid_unknown_code"
+                            small
+                            text
+                            color="warning"
+                            :disabled="readOnlyMode || printerIsPrinting"
+                            title="Create a filament profile for this RFID tag"
+                            @click="resolveUnknownRfid(slot)">
+                            <v-icon left small>{{ mdiNfcVariant }}</v-icon>
+                            Map RFID
+                        </v-btn>
+                        <v-btn
+                            v-else
+                            small
+                            text
+                            :disabled="readOnlyMode || slot.rfid_active || printerIsPrinting"
+                            :title="slot.rfid_active ? 'Managed by live RFID' : 'Edit filament metadata'"
+                            @click="editSlot(slot)">
+                            <v-icon small>{{ mdiPencil }}</v-icon>
+                        </v-btn>
                         <v-spacer />
                         <v-icon v-if="slot.present" small color="success">{{ mdiCheckCircle }}</v-icon>
                         <v-icon v-else small color="grey">{{ mdiCircleOutline }}</v-icon>
@@ -168,6 +201,14 @@
                 </span>
             </div>
         </v-card-text>
+
+        <cfs-filament-manager-dialog
+            v-model="showFilamentManager"
+            :box="box"
+            :read-only="readOnlyMode"
+            :prefill-rfid-code="pendingRfidCode"
+            :prefill-color="pendingRfidColor" />
+        <cfs-slot-filament-dialog :slot="editingSlot" v-model="showSlotDialog" :box="box" />
     </panel>
 </template>
 
@@ -178,10 +219,12 @@ import {
     mdiCheckCircle,
     mdiCircleOutline,
     mdiCog,
+    mdiDatabase,
     mdiEject,
     mdiNfc,
     mdiNfcVariant,
     mdiPackageVariantClosed,
+    mdiPencil,
     mdiPlay,
     mdiPrinter3dNozzle,
     mdiSwapHorizontal,
@@ -192,10 +235,13 @@ import {
 } from '@mdi/js'
 import BaseMixin from '@/components/mixins/base'
 import Panel from '@/components/ui/Panel.vue'
+import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDialog.vue'
+import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 
 const EMPTY_BOX: CfsBoxState = {
     api_version: 0,
+    filament_inventory_version: 0,
     fluidd_widget_version: 0,
     data_ready: false,
     status: 'UNKNOWN',
@@ -209,6 +255,7 @@ const EMPTY_BOX: CfsBoxState = {
     slot_filament_mask: 0,
     slots: [],
     materials: {},
+    filaments: {},
     runout: null,
     runout_swap_enabled: false,
     unload_after_print_enabled: false,
@@ -252,16 +299,18 @@ const EMPTY_BOX: CfsBoxState = {
     driver_ready: false,
 }
 
-@Component({ components: { Panel } })
+@Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog } })
 export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
     mdiCheckCircle = mdiCheckCircle
     mdiCircleOutline = mdiCircleOutline
     mdiCog = mdiCog
+    mdiDatabase = mdiDatabase
     mdiEject = mdiEject
     mdiNfc = mdiNfc
     mdiNfcVariant = mdiNfcVariant
     mdiPackageVariantClosed = mdiPackageVariantClosed
+    mdiPencil = mdiPencil
     mdiPlay = mdiPlay
     mdiPrinter3dNozzle = mdiPrinter3dNozzle
     mdiSwapHorizontal = mdiSwapHorizontal
@@ -269,6 +318,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiTransitConnectionVariant = mdiTransitConnectionVariant
     mdiTrayArrowUp = mdiTrayArrowUp
     mdiWaterPercent = mdiWaterPercent
+
+    showFilamentManager = false
+    showSlotDialog = false
+    editingSlot: CfsSlot | null = null
+    pendingRfidCode = ''
+    pendingRfidColor = ''
 
     get showPanel(): boolean {
         return this.klipperReadyForGui && 'box' in this.$store.state.printer
@@ -369,7 +424,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     slotMeta(slot: CfsSlot): string {
-        if (slot.material || slot.brand) return [slot.material, slot.brand].filter(Boolean).join(' · ')
+        if (slot.rfid_unknown_code) {
+            const color = slot.rfid_unknown_color ? ` · ${slot.rfid_unknown_color}` : ''
+            return `Unknown RFID · ${slot.rfid_unknown_code}${color}`
+        }
+        if (slot.material || slot.brand) {
+            const target = slot.target_temp ? `${slot.target_temp} °C` : ''
+            return [slot.material, slot.brand, target].filter(Boolean).join(' · ')
+        }
         if (slot.external) return 'Manual / RFID'
         return slot.present ? 'Material not set' : 'No filament'
     }
@@ -383,6 +445,33 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             'cfs-slot-loaded': slot.loaded,
             'cfs-slot-empty': !slot.present,
         }
+    }
+
+    sourceLabel(slot: CfsSlot): string {
+        if (slot.rfid_unknown_code) return 'RFID ?'
+        if (slot.rfid_active || slot.source === 'rfid') return 'RFID'
+        if (slot.source === 'spoolman') return 'Spoolman'
+        if (slot.source === 'library' || slot.filament_id) return 'Library'
+        return 'Manual'
+    }
+
+    openFilamentManager(): void {
+        this.pendingRfidCode = ''
+        this.pendingRfidColor = ''
+        this.showFilamentManager = true
+    }
+
+    resolveUnknownRfid(slot: CfsSlot): void {
+        if (this.readOnlyMode || this.printerIsPrinting || !slot.rfid_unknown_code) return
+        this.pendingRfidCode = slot.rfid_unknown_code
+        this.pendingRfidColor = slot.rfid_unknown_color || slot.color || '#808080'
+        this.showFilamentManager = true
+    }
+
+    editSlot(slot: CfsSlot): void {
+        if (this.readOnlyMode || slot.rfid_active || this.printerIsPrinting) return
+        this.editingSlot = slot
+        this.showSlotDialog = true
     }
 
     canSelectSlot(slot: CfsSlot): boolean {
