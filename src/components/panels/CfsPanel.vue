@@ -1,3 +1,5 @@
+[Reading 942 lines from start (total: 942 lines, 0 remaining)]
+
 [Reading 938 lines from start (total: 938 lines, 0 remaining)]
 
 <template>
@@ -602,8 +604,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
         const degrees = Math.max(0, Math.min(360, percent * 3.6))
         return {
-            background: `conic-gradient(from -90deg, ${color} 0deg ${degrees}deg, rgba(255,255,255,.12) ${degrees}deg 360deg)`,
-            borderColor: color,
+            background: `conic-gradient(from -90deg, ${color} 0deg ${degrees}deg, rgba(127,127,127,.22) ${degrees}deg 360deg)`,
+            borderColor: 'rgba(127,127,127,.40)',
         }
     }
 
@@ -938,5 +940,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 }
 </style>
+
+[executed on device: K2-OpenHost (89cb063b-3b3d-4426-afdd-42400b8c7ae2)]
 
 [executed on device: K2-OpenHost (89cb063b-3b3d-4426-afdd-42400b8c7ae2)]
