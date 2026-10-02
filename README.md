@@ -38,6 +38,19 @@
   </a>
 </p>
 
+## K2-OpenHost fork
+
+This branch adds a native Creality K2/OpenHost CFS workflow while keeping the upstream Mainsail UI structure. The CFS panel reads the canonical `printer.objects.box` object and adds:
+
+- persistent custom filament library management;
+- manual slot assignment for non-RFID slots, including the external spool;
+- automatic display of RFID/Spoolman/library/manual slot provenance;
+- temperature/humidity and filament-path state;
+- logical-tool to physical-slot mapping in the normal Print dialog;
+- compatibility with the K2-OpenHost `BOX_PRINT_INFO` / `BOX_PRINT_START` API used by Jacob10383's OrcaSlicer mapping workflow.
+
+Custom filament IDs may use the same five-character material IDs used by DnG-Crafts/K2-RFID. K2-OpenHost recognizes the corresponding `1xxxxx` RFID `filamentId` automatically, so the external K2-RFID writer can continue to be used for physical tag programming while Mainsail manages the OpenHost inventory. When a live tag contains an unknown material code, the affected slot exposes **Map RFID**; the filament editor is prefilled with the tag ID/color and saving the new profile resolves the slot immediately.
+
 ## Getting Started
 
 Visit [docs.mainsail.xyz/setup](https://docs.mainsail.xyz/setup) to get started with Mainsail.

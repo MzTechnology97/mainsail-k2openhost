@@ -6,10 +6,28 @@ export interface CfsSlot {
     color: string
     brand: string
     name: string
+    target_temp: number | null
     spoolman_id: number | null
+    filament_id: string
+    source: string
+    rfid_code: string
+    rfid_active: boolean
+    rfid_unknown_code: string
+    rfid_unknown_color: string
     rfid_percent: number | null
     rfid_reserve: string
     external: boolean
+}
+
+export interface CfsFilament {
+    id: string
+    material: string
+    color: string
+    brand: string
+    name: string
+    target_temp: number | null
+    rfid_code: string
+    spoolman_id: number | null
 }
 
 export interface CfsMaterial {
@@ -33,6 +51,12 @@ export interface CfsPrintMapping {
     map: Record<string, number>
     active_tool: number | null
     active_slot: number | null
+}
+
+export interface CfsAutoMapping {
+    state: string
+    map: Record<string, number>
+    unresolved: number[]
 }
 
 export interface CfsLoadPath {
@@ -84,11 +108,13 @@ export interface CfsRecovery {
 
 export interface CfsBoxState {
     api_version: number
+    filament_inventory_version?: number
     fluidd_widget_version: number
     print_mapping_version?: number
     print_mapping_enabled?: boolean
     print_info?: CfsPrintInfo | null
     print_mapping?: CfsPrintMapping
+    auto_mapping?: CfsAutoMapping
     data_ready: boolean
     status: string
     status_code: number
@@ -101,6 +127,7 @@ export interface CfsBoxState {
     slot_filament_mask: number
     slots: CfsSlot[]
     materials: Record<string, CfsMaterial>
+    filaments: Record<string, CfsFilament>
     runout: unknown
     runout_swap_enabled: boolean
     unload_after_print_enabled: boolean

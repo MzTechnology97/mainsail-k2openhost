@@ -219,10 +219,22 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         }
 
         const slots = (this.box?.slots ?? []).slice().sort((a, b) => a.index - b.index)
+        const next: Record<number, number | null> = {}
+        const backend = this.box?.auto_mapping
+        if (backend && (backend.state === 'ready' || backend.state === 'unresolved')) {
+            for (const tool of this.tools) {
+                const suggested = backend.map[String(tool.tool)]
+                const slot = slots.find((item) => item.index === suggested)
+                next[tool.tool] = slot && (slot.external || slot.present) ? suggested : null
+            }
+            this.mapping = next
+            this.emitState()
+            return
+        }
+
         const physical = slots.filter((slot) => !slot.external && slot.present)
         const external = slots.find((slot) => slot.external)
         const used = new Set<number>()
-        const next: Record<number, number | null> = {}
 
         for (const tool of this.tools) {
             const material = this.normalize(tool.material)
@@ -248,10 +260,9 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
             // including the external spool path reported by Box as EXT.
             if (!selected) selected = slots.find((slot) => slot.loaded)
 
-            // If no CFS spool matches the slicer metadata, leave the physical
-            // CFS slots untouched and offer the separate external path instead.
-            if (!selected) selected = external
-
+            // If no source matches, keep the tool unresolved. The user may
+            // still choose the external spool explicitly, but Auto map must not
+            // silently route an unrelated filament there.
             next[tool.tool] = selected?.index ?? null
             if (selected && !selected.external) used.add(selected.index)
         }
@@ -335,6 +346,13 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     onMappingEnabledChanged(): void {
         if (this.active && this.printInfo) this.applyPrintInfo(this.printInfo)
         else this.emitState()
+    }
+
+    @Watch('box.auto_mapping', { deep: true })
+    onAutoMappingChanged(): void {
+        if (!this.active || !this.mappingEnabled || !this.printInfo) return
+        const state = this.box?.auto_mapping?.state
+        if (state === 'ready' || state === 'unresolved') this.autoMap()
     }
 
     @Watch('box.driver_ready')
