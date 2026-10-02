@@ -3,13 +3,13 @@
         <v-card>
             <v-card-title class="d-flex align-center">
                 <v-icon class="mr-2">{{ rfidManaged ? mdiNfcVariant : mdiSpool }}</v-icon>
-                {{ slot ? slotLabel(slot) : 'CFS slot' }} · {{ rfidManaged ? 'RFID filament' : 'manual filament' }}
+                {{ cfsSlot ? slotLabel(cfsSlot) : 'CFS slot' }} · {{ rfidManaged ? 'RFID filament' : 'manual filament' }}
                 <v-spacer />
                 <v-btn icon @click="close"><v-icon>{{ mdiClose }}</v-icon></v-btn>
             </v-card-title>
             <v-divider />
 
-            <v-card-text v-if="slot" class="pt-5">
+            <v-card-text v-if="cfsSlot" class="pt-5">
                 <template v-if="rfidManaged">
                     <v-alert dense text type="info" class="mb-4">
                         RFID filament data is read-only and inherited from the filament database.
@@ -18,14 +18,14 @@
                     <div class="d-flex align-center mb-4">
                         <div class="cfs-rfid-swatch mr-3" :style="{ backgroundColor: rfidColor }" />
                         <div>
-                            <div class="text-h6">{{ slot.material || 'Unknown material' }}</div>
+                            <div class="text-h6">{{ cfsSlot.material || 'Unknown material' }}</div>
                             <div class="text--secondary">{{ rfidName }}</div>
                         </div>
                     </div>
 
                     <v-simple-table dense>
                         <tbody>
-                            <tr><th>Material</th><td>{{ slot.material || '—' }}</td></tr>
+                            <tr><th>Material</th><td>{{ cfsSlot.material || '—' }}</td></tr>
                             <tr><th>Full name</th><td>{{ rfidName }}</td></tr>
                             <tr><th>Brand</th><td>{{ rfidBrand }}</td></tr>
                             <tr>
@@ -35,8 +35,8 @@
                                     <code>{{ rfidColor }}</code>
                                 </td>
                             </tr>
-                            <tr><th>RFID code</th><td><code>{{ slot.rfid_code || '—' }}</code></td></tr>
-                            <tr><th>Filament ID</th><td><code>{{ slot.filament_id || '—' }}</code></td></tr>
+                            <tr><th>RFID code</th><td><code>{{ cfsSlot.rfid_code || '—' }}</code></td></tr>
+                            <tr><th>Filament ID</th><td><code>{{ cfsSlot.filament_id || '—' }}</code></td></tr>
                             <tr><th>Nozzle temperature</th><td>{{ rfidTemperatureRange }}</td></tr>
                             <tr><th>Pressure advance</th><td>{{ rfidPressureAdvanceText }}</td></tr>
                             <tr><th>Remaining</th><td>{{ rfidRemainingText }}</td></tr>
@@ -118,11 +118,11 @@
 
             <v-divider />
             <v-card-actions>
-                <v-btn v-if="slot && !rfidManaged" text color="error" @click="clearSlot">
+                <v-btn v-if="cfsSlot && !rfidManaged" text color="error" @click="clearSlot">
                     Reset slot
                 </v-btn>
                 <v-btn
-                    v-if="slot && rfidManaged && !slot.external"
+                    v-if="cfsSlot && rfidManaged && !cfsSlot.external"
                     text
                     color="primary"
                     :disabled="printerIsPrinting"
@@ -131,7 +131,7 @@
                     Reread RFID
                 </v-btn>
                 <v-btn
-                    v-if="slot && slot.external && !rfidManaged"
+                    v-if="cfsSlot && cfsSlot.external && !rfidManaged"
                     text
                     color="primary"
                     :disabled="printerIsPrinting"
@@ -141,7 +141,7 @@
                 </v-btn>
                 <v-spacer />
                 <v-btn text @click="close">{{ rfidManaged ? $t('Buttons.Close') : 'Cancel' }}</v-btn>
-                <v-btn v-if="slot && !rfidManaged" color="primary" :disabled="!canSave" @click="save">
+                <v-btn v-if="cfsSlot && !rfidManaged" color="primary" :disabled="!canSave" @click="save">
                     Save
                 </v-btn>
             </v-card-actions>
@@ -165,7 +165,7 @@ interface SelectItem {
 export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
-    @Prop({ type: Object, default: null }) readonly slot!: CfsSlot | null
+    @Prop({ type: Object, default: null }) readonly cfsSlot!: CfsSlot | null
 
     mdiClose = mdiClose
     mdiNfc = mdiNfc
@@ -186,7 +186,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     get rfidManaged(): boolean {
-        return !!this.slot && (this.slot.rfid_active || (this.slot.present && this.slot.source === 'rfid'))
+        return !!this.cfsSlot && (this.cfsSlot.rfid_active || (this.cfsSlot.present && this.cfsSlot.source === 'rfid'))
     }
 
     get rfidProfile(): CfsFilament | null {
@@ -194,15 +194,15 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     get rfidName(): string {
-        return this.rfidProfile?.name || this.slot?.name || '—'
+        return this.rfidProfile?.name || this.cfsSlot?.name || '—'
     }
 
     get rfidBrand(): string {
-        return this.rfidProfile?.brand || this.slot?.brand || '—'
+        return this.rfidProfile?.brand || this.cfsSlot?.brand || '—'
     }
 
     get rfidColor(): string {
-        return this.validColor(this.slot?.color || this.rfidProfile?.color || '#808080')
+        return this.validColor(this.cfsSlot?.color || this.rfidProfile?.color || '#808080')
     }
 
     get rfidTemperatureRange(): string {
@@ -211,22 +211,22 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
             item?.max_temp !== null && item?.max_temp !== undefined) {
             return `${item.min_temp} ~ ${item.max_temp} °C`
         }
-        const target = item?.target_temp ?? this.slot?.target_temp
+        const target = item?.target_temp ?? this.cfsSlot?.target_temp
         return target !== null && target !== undefined ? `${target} °C` : '—'
     }
 
     get rfidPressureAdvanceText(): string {
-        const value = this.rfidProfile?.pressure_advance ?? this.slot?.pressure_advance
+        const value = this.rfidProfile?.pressure_advance ?? this.cfsSlot?.pressure_advance
         return typeof value === 'number' && Number.isFinite(value)
             ? value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
             : '—'
     }
 
     get rfidRemainingText(): string {
-        if (!this.slot || this.slot.rfid_percent === null) return '—'
-        const percent = Math.max(0, Math.min(100, this.slot.rfid_percent))
+        if (!this.cfsSlot || this.cfsSlot.rfid_percent === null) return '—'
+        const percent = Math.max(0, Math.min(100, this.cfsSlot.rfid_percent))
         const parts = [`${percent.toFixed(percent < 10 ? 1 : 0)}%`]
-        if (this.slot.rfid_remaining_m !== null) parts.push(`${this.slot.rfid_remaining_m.toFixed(1)} m`)
+        if (this.cfsSlot.rfid_remaining_m !== null) parts.push(`${this.cfsSlot.rfid_remaining_m.toFixed(1)} m`)
         return parts.join(' · ')
     }
 
@@ -281,7 +281,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     get canSave(): boolean {
-        return !!this.slot && !this.rfidManaged && !!this.selectedProfile
+        return !!this.cfsSlot && !this.rfidManaged && !!this.selectedProfile
     }
 
     slotLabel(slot: CfsSlot): string {
@@ -308,7 +308,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         if (!filament) return
         this.brand = filament.brand ?? ''
         this.material = filament.material ?? ''
-        if (!this.slot?.color && filament.color) this.color = this.validColor(filament.color)
+        if (!this.cfsSlot?.color && filament.color) this.color = this.validColor(filament.color)
     }
 
     validColor(value: string): string {
@@ -316,48 +316,48 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     findMatchingProfile(): CfsFilament | null {
-        if (!this.slot) return null
-        if (this.slot.filament_id && this.box.filaments?.[this.slot.filament_id]) {
-            return this.box.filaments[this.slot.filament_id]
+        if (!this.cfsSlot) return null
+        if (this.cfsSlot.filament_id && this.box.filaments?.[this.cfsSlot.filament_id]) {
+            return this.box.filaments[this.cfsSlot.filament_id]
         }
         const candidates = this.filaments.filter((item) =>
-            (!this.slot?.brand || item.brand === this.slot.brand) &&
-            (!this.slot?.material || item.material === this.slot.material) &&
-            (!this.slot?.name || item.name === this.slot.name)
+            (!this.cfsSlot?.brand || item.brand === this.cfsSlot.brand) &&
+            (!this.cfsSlot?.material || item.material === this.cfsSlot.material) &&
+            (!this.cfsSlot?.name || item.name === this.cfsSlot.name)
         )
         return candidates.length === 1 ? candidates[0] : null
     }
 
     resetFromSlot(): void {
-        if (!this.slot) return
+        if (!this.cfsSlot) return
         const match = this.findMatchingProfile()
         this.selectedId = match?.id ?? null
-        this.brand = match?.brand || this.slot.brand || ''
-        this.material = match?.material || this.slot.material || ''
-        this.color = this.validColor(this.slot.color || match?.color || '#808080')
+        this.brand = match?.brand || this.cfsSlot.brand || ''
+        this.material = match?.material || this.cfsSlot.material || ''
+        this.color = this.validColor(this.cfsSlot.color || match?.color || '#808080')
     }
 
     save(): void {
-        if (!this.slot || !this.canSave || !this.selectedId) return
-        const script = `_BOX_SLOT_ASSIGN SLOT=${this.slot.index} FILAMENT_ID="${this.escape(this.selectedId)}" COLOR="${this.escape(this.color)}"`
+        if (!this.cfsSlot || !this.canSave || !this.selectedId) return
+        const script = `_BOX_SLOT_ASSIGN SLOT=${this.cfsSlot.index} FILAMENT_ID="${this.escape(this.selectedId)}" COLOR="${this.escape(this.color)}"`
         this.send(script)
         this.close()
     }
 
     clearSlot(): void {
-        if (!this.slot || this.rfidManaged) return
-        this.send(`_BOX_SLOT_CLEAR SLOT=${this.slot.index}`)
+        if (!this.cfsSlot || this.rfidManaged) return
+        this.send(`_BOX_SLOT_CLEAR SLOT=${this.cfsSlot.index}`)
         this.close()
     }
 
     rereadRfid(): void {
-        if (!this.slot || !this.rfidManaged || this.slot.external || this.printerIsPrinting) return
-        this.send(`_BOX_RFID_READ_SLOT SLOT=${this.slot.index}`)
+        if (!this.cfsSlot || !this.rfidManaged || this.cfsSlot.external || this.printerIsPrinting) return
+        this.send(`_BOX_RFID_READ_SLOT SLOT=${this.cfsSlot.index}`)
         this.close()
     }
 
     readExternalRfid(): void {
-        if (!this.slot?.external || this.printerIsPrinting) return
+        if (!this.cfsSlot?.external || this.printerIsPrinting) return
         this.send('RFID_READER_READ')
         this.close()
     }
@@ -380,7 +380,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         if (open) this.resetFromSlot()
     }
 
-    @Watch('slot')
+    @Watch('cfsSlot')
     onSlotChanged(): void {
         if (this.showDialog) this.resetFromSlot()
     }
