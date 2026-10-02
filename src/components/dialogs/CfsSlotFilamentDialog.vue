@@ -1,5 +1,5 @@
 <template>
-    <v-dialog :value="value" max-width="680" scrollable eager @input="setOpen">
+    <v-dialog v-model="showDialog" max-width="720" scrollable eager>
         <v-card>
             <v-card-title class="d-flex align-center">
                 <v-icon class="mr-2">{{ rfidManaged ? mdiNfcVariant : mdiSpool }}</v-icon>
@@ -130,6 +130,15 @@
                     <v-icon left small>{{ mdiRefresh }}</v-icon>
                     Reread RFID
                 </v-btn>
+                <v-btn
+                    v-if="slot && slot.external && !rfidManaged"
+                    text
+                    color="primary"
+                    :disabled="printerIsPrinting"
+                    @click="readExternalRfid">
+                    <v-icon left small>{{ mdiNfc }}</v-icon>
+                    Read external RFID
+                </v-btn>
                 <v-spacer />
                 <v-btn text @click="close">{{ rfidManaged ? $t('Buttons.Close') : 'Cancel' }}</v-btn>
                 <v-btn v-if="slot && !rfidManaged" color="primary" :disabled="!canSave" @click="save">
@@ -141,11 +150,11 @@
 </template>
 
 <script lang="ts">
-import { Component, Mixins, Prop, Watch } from 'vue-property-decorator'
+import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
-import { mdiClose, mdiNfcVariant, mdiPackageVariantClosed, mdiRefresh } from '@mdi/js'
+import { mdiClose, mdiNfc, mdiNfcVariant, mdiPackageVariantClosed, mdiRefresh } from '@mdi/js'
 
 interface SelectItem {
     text: string
@@ -154,11 +163,12 @@ interface SelectItem {
 
 @Component({ components: { CfsColorPicker } })
 export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
-    @Prop({ type: Boolean, default: false }) readonly value!: boolean
+    @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
     @Prop({ type: Object, default: null }) readonly slot!: CfsSlot | null
 
     mdiClose = mdiClose
+    mdiNfc = mdiNfc
     mdiNfcVariant = mdiNfcVariant
     mdiSpool = mdiPackageVariantClosed
     mdiRefresh = mdiRefresh
@@ -278,12 +288,8 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         return slot.external ? 'External spool (EXT)' : `T${slot.index}`
     }
 
-    setOpen(open: boolean): void {
-        this.$emit('input', open)
-    }
-
     close(): void {
-        this.$emit('input', false)
+        this.showDialog = false
     }
 
     onBrandChanged(): void {
@@ -350,6 +356,12 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         this.close()
     }
 
+    readExternalRfid(): void {
+        if (!this.slot?.external || this.printerIsPrinting) return
+        this.send('RFID_READER_READ')
+        this.close()
+    }
+
     escape(value: string): string {
         return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')
     }
@@ -360,17 +372,17 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     mounted(): void {
-        if (this.value) this.resetFromSlot()
+        if (this.showDialog) this.resetFromSlot()
     }
 
-    @Watch('value')
+    @Watch('showDialog')
     onOpen(open: boolean): void {
         if (open) this.resetFromSlot()
     }
 
     @Watch('slot')
     onSlotChanged(): void {
-        if (this.value) this.resetFromSlot()
+        if (this.showDialog) this.resetFromSlot()
     }
 }
 </script>
