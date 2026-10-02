@@ -556,11 +556,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     editSlot(slot: CfsSlot): void {
         if (slot.rfid_active || this.printerIsPrinting) return
-        this.showSlotDialog = false
         this.editingSlot = slot
-        this.$nextTick(() => {
-            this.showSlotDialog = true
-        })
+        this.showSlotDialog = true
     }
 
     canSelectSlot(slot: CfsSlot): boolean {
