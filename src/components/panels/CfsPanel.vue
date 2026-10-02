@@ -165,9 +165,9 @@
                             small
                             text
                             color="warning"
-                            :disabled="readOnlyMode || printerIsPrinting"
+                            :disabled="printerIsPrinting"
                             title="Create a filament profile for this RFID tag"
-                            @click="resolveUnknownRfid(slot)">
+                            @click.stop="resolveUnknownRfid(slot)">
                             <v-icon left small>{{ mdiNfcVariant }}</v-icon>
                             Map RFID
                         </v-btn>
@@ -175,9 +175,9 @@
                             v-else
                             small
                             text
-                            :disabled="readOnlyMode || slot.rfid_active || printerIsPrinting"
+                            :disabled="slot.rfid_active || printerIsPrinting"
                             :title="slot.rfid_active ? 'Managed by live RFID' : 'Edit filament metadata'"
-                            @click="editSlot(slot)">
+                            @click.stop="editSlot(slot)">
                             <v-icon small>{{ mdiPencil }}</v-icon>
                         </v-btn>
                         <v-spacer />
@@ -246,10 +246,15 @@
         <cfs-filament-manager-dialog
             v-model="showFilamentManager"
             :box="box"
-            :read-only="readOnlyMode"
+            :read-only="printerIsPrinting"
             :prefill-rfid-code="pendingRfidCode"
             :prefill-color="pendingRfidColor" />
-        <cfs-slot-filament-dialog :slot="editingSlot" v-model="showSlotDialog" :box="box" />
+        <cfs-slot-filament-dialog
+            v-if="editingSlot"
+            :key="`cfs-slot-dialog-${editingSlot.index}`"
+            :slot="editingSlot"
+            v-model="showSlotDialog"
+            :box="box" />
     </panel>
 </template>
 
@@ -543,16 +548,19 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     resolveUnknownRfid(slot: CfsSlot): void {
-        if (this.readOnlyMode || this.printerIsPrinting || !slot.rfid_unknown_code) return
+        if (this.printerIsPrinting || !slot.rfid_unknown_code) return
         this.pendingRfidCode = slot.rfid_unknown_code
         this.pendingRfidColor = slot.rfid_unknown_color || slot.color || '#808080'
         this.showFilamentManager = true
     }
 
     editSlot(slot: CfsSlot): void {
-        if (this.readOnlyMode || slot.rfid_active || this.printerIsPrinting) return
+        if (slot.rfid_active || this.printerIsPrinting) return
+        this.showSlotDialog = false
         this.editingSlot = slot
-        this.showSlotDialog = true
+        this.$nextTick(() => {
+            this.showSlotDialog = true
+        })
     }
 
     canSelectSlot(slot: CfsSlot): boolean {
