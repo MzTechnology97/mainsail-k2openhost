@@ -51,8 +51,14 @@ This branch adds a native Creality K2/OpenHost CFS workflow while keeping the up
 
 Custom filament IDs may use the same five-character material IDs used by DnG-Crafts/K2-RFID. K2-OpenHost recognizes the corresponding `1xxxxx` RFID `filamentId` automatically, so the external K2-RFID writer can continue to be used for physical tag programming while Mainsail manages the OpenHost inventory. When a live tag contains an unknown material code, the affected slot exposes **Map RFID**; the filament editor is prefilled with the tag ID/color and saving the new profile resolves the slot immediately.
 
+The fork also ships the full Creality + Generic K2-RFID system catalog exposed by the K2-OpenHost backend. The filament library can create a custom profile from one of those read-only presets, including material type, nozzle range and pressure-advance metadata. Material is selected from the known catalog rather than typed freely. Non-RFID CFS slots use a dedicated Brand → Type → Profile → Color dialog, with the DnG-Crafts preset color palette plus a full custom color picker.
+
+The dashboard keeps CFS cards compact and responsive, wraps filament names and metadata instead of clipping them, and renders spool colors as saturated solid swatches. RFID remaining percentage and estimated metres are shown as text so depletion tracking never desaturates or hides the actual spool color.
+
+Slot assignments and RFID estimates are backend state, not browser state: they survive Mainsail reloads and printer restarts through the configured K2-OpenHost `filament_box.json`. The normal Print dialog and direct Orca/Moonraker starts use the same backend auto-mapper; exact profile matches win, Generic profiles are safe fallbacks when a slicer preset name is unavailable, and unresolved multicolor jobs are blocked rather than guessing.
+
+## Getting Started
 
 <img width="900" height="987" alt="image" src="https://github.com/user-attachments/assets/daad238c-0782-43da-816a-d09b9a8c926d" />
 
 <img width="903" height="847" alt="image" src="https://github.com/user-attachments/assets/3f11339a-56a2-403b-8701-56527337e5fc" />
-
