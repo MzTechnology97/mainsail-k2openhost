@@ -1,5 +1,5 @@
 <template>
-    <v-dialog v-model="showDialog" max-width="900" scrollable>
+    <v-dialog v-model="showDialog" max-width="1100" scrollable>
         <v-card>
             <v-card-title class="d-flex align-center">
                 <v-icon class="mr-2">{{ mdiDatabase }}</v-icon>
@@ -28,6 +28,35 @@
                         :prepend-inner-icon="mdiMagnify"
                         label="Search filaments"
                         class="mb-2" />
+
+                    <v-row dense class="cfs-filament-filters mb-1">
+                        <v-col cols="12" sm="6">
+                            <v-select
+                                v-model="brandFilter"
+                                :items="brandFilterOptions"
+                                dense
+                                outlined
+                                clearable
+                                hide-details
+                                label="Brand"
+                                placeholder="All brands" />
+                        </v-col>
+                        <v-col cols="12" sm="6">
+                            <v-select
+                                v-model="materialFilter"
+                                :items="materialFilterOptions"
+                                dense
+                                outlined
+                                clearable
+                                hide-details
+                                label="Material"
+                                placeholder="All materials" />
+                        </v-col>
+                    </v-row>
+
+                    <div class="caption text--secondary mb-2">
+                        {{ filteredFilaments.length }} of {{ filaments.length }} profiles
+                    </div>
 
                     <v-list v-if="filteredFilaments.length" two-line class="cfs-filament-list">
                         <template v-for="(filament, index) in filteredFilaments">
@@ -245,6 +274,8 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     editing = false
     editingExisting = false
     search = ''
+    brandFilter: string | null = null
+    materialFilter: string | null = null
     presetId: string | null = null
     form: FilamentForm = this.blank()
 
@@ -255,15 +286,31 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         })
     }
 
+    get brandFilterOptions(): string[] {
+        return Array.from(
+            new Set(this.filaments.map((item) => (item.brand ?? '').trim()).filter(Boolean))
+        ).sort((a, b) => a.localeCompare(b))
+    }
+
+    get materialFilterOptions(): string[] {
+        const values = this.filaments
+            .filter((item) => !this.brandFilter || item.brand === this.brandFilter)
+            .map((item) => (item.material ?? '').trim())
+            .filter(Boolean)
+        return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b))
+    }
+
     get filteredFilaments(): CfsFilament[] {
         const needle = (this.search ?? '').trim().toLocaleLowerCase()
-        if (!needle) return this.filaments
-        return this.filaments.filter((item) =>
-            [item.id, item.brand, item.name, item.material, item.rfid_code]
+        return this.filaments.filter((item) => {
+            if (this.brandFilter && item.brand !== this.brandFilter) return false
+            if (this.materialFilter && item.material !== this.materialFilter) return false
+            if (!needle) return true
+            return [item.id, item.brand, item.name, item.material, item.rfid_code]
                 .join(' ')
                 .toLocaleLowerCase()
                 .includes(needle)
-        )
+        })
     }
 
     get systemFilaments(): CfsFilament[] {
@@ -466,6 +513,13 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     close(): void {
         this.editing = false
         this.showDialog = false
+    }
+
+    @Watch('brandFilter')
+    onBrandFilterChanged(): void {
+        if (this.materialFilter && !this.materialFilterOptions.includes(this.materialFilter)) {
+            this.materialFilter = null
+        }
     }
 
     @Watch('showDialog')

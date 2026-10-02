@@ -114,7 +114,9 @@
                                 <template #activator="{ on, attrs }">
                                     <div class="cfs-spool mr-3" v-bind="attrs" v-on="on">
                                         <div class="cfs-spool-ring" :style="spoolRingStyle(slot)" />
-                                        <div class="cfs-spool-hole">
+                                        <div
+                                            class="cfs-spool-hole"
+                                            :class="{ 'cfs-spool-hole--percent': !!spoolPercentLabel(slot) }">
                                             <span v-if="spoolPercentLabel(slot)" class="cfs-spool-percent">
                                                 {{ spoolPercentLabel(slot) }}
                                             </span>
@@ -291,10 +293,9 @@
         <cfs-slot-filament-dialog
             v-if="editingSlot"
             :key="`cfs-slot-dialog-${editingSlot.index}-${slotDialogNonce}`"
-            :value="showSlotDialog"
+            v-model="showSlotDialog"
             :cfs-slot="editingSlot"
-            :box="box"
-            @input="onSlotDialogVisibility" />
+            :box="box" />
     </panel>
 </template>
 
@@ -436,7 +437,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     get readOnlyMode(): boolean {
         return this.box.print_mapping_enabled === false
     }
-
     get temperatureText(): string {
         return typeof this.box.temp_c === 'number' && Number.isFinite(this.box.temp_c)
             ? `${this.box.temp_c.toFixed(1)} °C`
@@ -520,6 +520,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     slotDisplayName(slot: CfsSlot): string {
+        if (slot.name) return slot.name
         if (slot.material) return slot.material
         if (slot.external) return 'External spool'
         return slot.present ? 'Filament present' : 'Empty'
@@ -600,10 +601,10 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             }
         }
 
-        const degrees = Math.max(0, Math.min(360, percent * 3.6))
+        const fill = Math.max(0, Math.min(100, percent))
         return {
-            background: `conic-gradient(from -90deg, ${color} 0deg ${degrees}deg, rgba(127,127,127,.22) ${degrees}deg 360deg)`,
-            borderColor: 'rgba(127,127,127,.40)',
+            background: `conic-gradient(from -90deg, ${color} 0%, ${color} ${fill}%, rgba(110,110,110,.24) ${fill}%, rgba(110,110,110,.24) 100%)`,
+            borderColor: 'rgba(127,127,127,.42)',
         }
     }
 
@@ -642,24 +643,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     openSlotDialog(slot: CfsSlot): void {
-        this.showSlotDialog = false
-        this.editingSlot = null
-        this.$nextTick(() => {
-            this.editingSlot = { ...slot }
-            this.slotDialogNonce += 1
-            this.$nextTick(() => {
-                this.showSlotDialog = true
-            })
-        })
-    }
-
-    onSlotDialogVisibility(open: boolean): void {
-        this.showSlotDialog = open
-        if (!open) {
-            this.$nextTick(() => {
-                this.editingSlot = null
-            })
-        }
+        this.editingSlot = { ...slot }
+        this.slotDialogNonce += 1
+        this.showSlotDialog = true
     }
 
     scanAllRfid(): void {
@@ -714,9 +700,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 <style scoped>
 .cfs-slot-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    grid-auto-rows: 184px;
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(285px, 1fr));
+    grid-auto-rows: 196px;
+    gap: 14px;
     width: 100%;
     align-items: stretch;
 }
@@ -726,7 +712,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     flex-direction: column;
     width: 100%;
     min-width: 0;
-    height: 184px;
+    height: 196px;
     border-radius: 10px !important;
     overflow: hidden;
 }
@@ -823,7 +809,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 .cfs-spool-ring {
     inset: 0;
     border: 2px solid rgba(255, 255, 255, 0.18);
-    filter: saturate(1.7) brightness(1.12);
+    filter: saturate(2.05) brightness(1.15);
     box-shadow:
         0 3px 10px rgba(0, 0, 0, 0.38),
         inset 0 0 0 1px rgba(255, 255, 255, 0.22);
@@ -838,6 +824,10 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     box-shadow:
         0 0 0 2px rgba(160, 160, 160, 0.32),
         inset 0 2px 5px rgba(0, 0, 0, 0.42);
+}
+
+.cfs-spool-hole--percent {
+    background: rgba(22, 22, 22, 0.92);
 }
 
 .cfs-spool-core {
@@ -855,11 +845,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 .cfs-spool-percent {
     position: relative;
     z-index: 2;
-    font-size: 0.68rem;
+    color: #fff;
+    font-size: 0.72rem;
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.02em;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 
 .cfs-runout {
@@ -878,14 +869,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 @media (max-width: 760px) {
     .cfs-slot-grid {
-        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-        grid-auto-rows: 180px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        grid-auto-rows: 194px;
     }
 
     .cfs-slot-card {
-        height: 180px;
+        height: 194px;
     }
-
     .cfs-spool {
         width: 54px;
         height: 54px;
@@ -897,15 +887,15 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 560px) {
     .cfs-slot-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-auto-rows: 178px;
-        gap: 8px;
+        grid-template-columns: 1fr;
+        grid-auto-rows: 190px;
+        gap: 10px;
     }
 
     .cfs-slot-card {
-        height: 178px;
+        height: 190px;
     }
 
     .cfs-slot-body {
@@ -932,11 +922,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 }
 
-@media (max-width: 350px) {
-    .cfs-slot-grid {
-        grid-template-columns: 1fr;
-    }
-}
 </style>
 
 [executed on device: K2-OpenHost (89cb063b-3b3d-4426-afdd-42400b8c7ae2)]
