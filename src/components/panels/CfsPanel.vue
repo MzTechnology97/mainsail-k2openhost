@@ -520,8 +520,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     slotDisplayName(slot: CfsSlot): string {
-        const name = (slot.name ?? '').trim()
-        if (name) return name
         if (slot.material) return slot.material
         if (slot.external) return 'External spool'
         return slot.present ? 'Filament present' : 'Empty'
