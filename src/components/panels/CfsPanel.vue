@@ -235,47 +235,94 @@
                 </section>
             </div>
 
-            <div v-if="box.runout_swap_enabled && runoutSequenceSlots.length" class="cfs-runout">
-                <div class="cfs-runout-title">Active runout swap sequence</div>
-                <div class="cfs-chain">
-                    <template v-for="(slot, index) in runoutSequenceSlots">
-                        <v-chip :key="`runout-${slot.index}`" x-small outlined :title="slotLabel(slot)">
-                            {{ slotShortLabel(slot) }}
-                            <template v-if="slot.rfid_percent !== null">
-                                · {{ formatPercent(slot.rfid_percent) }}
-                            </template>
-                        </v-chip>
-                        <span v-if="index < runoutSequenceSlots.length - 1" :key="`arrow-${slot.index}`">→</span>
-                    </template>
-                    <span v-if="runoutUsesRemaining" class="text--secondary">lowest RFID remaining first</span>
-                </div>
-            </div>
+            <section
+                v-if="box.runout_swap_enabled && (runoutSequenceSlots.length || runoutGroups.length)"
+                class="cfs-runout">
+                <header class="cfs-runout-header">
+                    <v-icon small color="primary">{{ mdiSwapHorizontal }}</v-icon>
+                    <span class="cfs-runout-title">Runout swap</span>
+                    <span class="cfs-runout-state">Auto</span>
+                </header>
 
-            <div v-if="box.runout_swap_enabled && box.runout_groups.length" class="cfs-runout">
-                <div class="cfs-runout-title">Recognized runout swap groups</div>
-                <div v-for="group in box.runout_groups" :key="`${group.material}-${group.color}`" class="cfs-chain">
-                    <span class="cfs-group-swatch" :style="{ backgroundColor: groupColor(group.color) }" />
-                    <span>
-                        {{ group.material }}
-                        <template v-if="group.strategy === 'lowest_remaining_first'">· lowest remaining first</template>
-                    </span>
-                    <template v-for="(item, index) in group.detail">
-                        <v-chip
-                            :key="`group-${group.material}-${item.slot}`"
-                            x-small
-                            outlined
-                            :title="slotLabelByIndex(item.slot)">
-                            {{ slotShortLabelByIndex(item.slot) }}
-                            <template v-if="item.percent !== null">· {{ formatPercent(item.percent) }}</template>
-                        </v-chip>
-                        <span
-                            v-if="index < group.detail.length - 1"
-                            :key="`group-arrow-${group.material}-${item.slot}`">
-                            →
+                <div
+                    v-if="runoutSequenceSlots.length && !activeGroupKey"
+                    class="cfs-runout-group cfs-runout-group--active cfs-runout-group--sequence">
+                    <div class="cfs-runout-group-head">
+                        <span class="cfs-runout-group-name">Active sequence</span>
+                        <span v-if="runoutUsesRemaining" class="cfs-runout-group-note">
+                            lowest RFID remaining first
                         </span>
-                    </template>
+                    </div>
+                    <div class="cfs-runout-chain">
+                        <template v-for="(slot, index) in runoutSequenceSlots">
+                            <span
+                                :key="`runout-${slot.index}`"
+                                class="cfs-runout-step"
+                                :class="{ 'cfs-runout-step--loaded': slot.loaded }"
+                                :title="slotLabel(slot)"
+                                :style="{
+                                    '--cfs-slot-color': slotColor(slot),
+                                    '--cfs-slot-outline': slotOutline(slot),
+                                }">
+                                <span class="cfs-runout-dot" />
+                                {{ slotShortLabel(slot) }}
+                                <span v-if="slot.rfid_percent !== null" class="cfs-runout-percent">
+                                    {{ formatPercent(slot.rfid_percent) }}
+                                </span>
+                                <span v-if="slot.loaded" class="cfs-runout-inuse">in use</span>
+                            </span>
+                            <v-icon
+                                v-if="index < runoutSequenceSlots.length - 1"
+                                :key="`arrow-${slot.index}`"
+                                small
+                                class="cfs-runout-arrow">
+                                {{ mdiArrowRightThin }}
+                            </v-icon>
+                        </template>
+                    </div>
                 </div>
-            </div>
+
+                <div
+                    v-for="group in runoutGroups"
+                    :key="group.key"
+                    class="cfs-runout-group"
+                    :class="{ 'cfs-runout-group--active': group.key === activeGroupKey }"
+                    :style="{ '--cfs-group-color': group.color, '--cfs-slot-outline': group.outline }">
+                    <div class="cfs-runout-group-head">
+                        <span class="cfs-runout-swatch" />
+                        <span class="cfs-runout-group-name">{{ group.material }}</span>
+                        <span v-if="group.key === activeGroupKey" class="cfs-runout-inuse">active</span>
+                        <span class="cfs-runout-group-note">
+                            {{ group.steps.length }} spools
+                            <template v-if="group.lowestFirst">· lowest remaining first</template>
+                        </span>
+                    </div>
+                    <div class="cfs-runout-chain">
+                        <template v-for="(step, index) in group.steps">
+                            <span
+                                :key="`${group.key}-${step.index}`"
+                                class="cfs-runout-step"
+                                :class="{ 'cfs-runout-step--loaded': step.loaded }"
+                                :title="step.title"
+                                :style="{ '--cfs-slot-color': group.color, '--cfs-slot-outline': group.outline }">
+                                <span class="cfs-runout-dot" />
+                                {{ step.label }}
+                                <span v-if="step.percent !== null" class="cfs-runout-percent">
+                                    {{ formatPercent(step.percent) }}
+                                </span>
+                                <span v-if="step.loaded" class="cfs-runout-inuse">in use</span>
+                            </span>
+                            <v-icon
+                                v-if="index < group.steps.length - 1"
+                                :key="`${group.key}-arrow-${step.index}`"
+                                small
+                                class="cfs-runout-arrow">
+                                {{ mdiArrowRightThin }}
+                            </v-icon>
+                        </template>
+                    </div>
+                </div>
+            </section>
 
             <div class="cfs-footer text--secondary">
                 <span>
@@ -318,6 +365,7 @@
 import { Component, Mixins } from 'vue-property-decorator'
 import {
     mdiAlertCircleOutline,
+    mdiArrowRightThin,
     mdiCheckCircle,
     mdiCog,
     mdiDatabase,
@@ -421,6 +469,8 @@ const EMPTY_BOX: CfsBoxState = {
 @Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog } })
 export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
+    mdiArrowRightThin = mdiArrowRightThin
+    mdiSwapHorizontal = mdiSwapHorizontal
     mdiCog = mdiCog
     mdiDatabase = mdiDatabase
     mdiEject = mdiEject
@@ -631,8 +681,53 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return cfsSlotLabel(slot)
     }
 
+    /** More than one CFS unit: short labels then include the box number. */
+    get multiBox(): boolean {
+        return this.sections.filter((section) => !section.external).length > 1
+    }
+
+    get runoutGroups(): {
+        key: string
+        material: string
+        color: string
+        outline: string
+        lowestFirst: boolean
+        steps: { index: number; label: string; title: string; percent: number | null; loaded: boolean }[]
+    }[] {
+        return this.box.runout_groups.map((group) => {
+            const color = this.groupColor(group.color)
+            return {
+                key: `${group.material}-${group.color}`,
+                material: group.material,
+                color,
+                outline: this.colorOutline(color),
+                lowestFirst: group.strategy === 'lowest_remaining_first',
+                steps: group.detail.map((item) => {
+                    const slot = this.box.slots.find((entry) => entry.index === item.slot)
+                    return {
+                        index: item.slot,
+                        label: this.slotShortLabelByIndex(item.slot),
+                        title: this.slotLabelByIndex(item.slot),
+                        percent: item.percent,
+                        loaded: !!slot?.loaded,
+                    }
+                }),
+            }
+        })
+    }
+
+    /** The group that the active runout sequence runs through, if any. */
+    get activeGroupKey(): string | null {
+        const sequence = this.runoutSequenceSlots.map((slot) => slot.index)
+        if (!sequence.length) return null
+        const group = this.runoutGroups.find((item) =>
+            sequence.every((index) => item.steps.some((step) => step.index === index))
+        )
+        return group?.key ?? null
+    }
+
     slotShortLabel(slot: CfsSlot): string {
-        return cfsSlotShortLabel(slot)
+        return cfsSlotShortLabel(slot, this.multiBox)
     }
 
     slotLabelByIndex(index: number): string {
@@ -642,7 +737,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     slotShortLabelByIndex(index: number): string {
         const slot = this.box.slots.find((item) => item.index === index)
-        return cfsSlotShortLabel(slot ?? { index, external: false })
+        return cfsSlotShortLabel(slot ?? { index, external: false }, this.multiBox)
     }
 
     tileBadge(slot: CfsSlot): string {
@@ -707,7 +802,11 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     /** Contrast outline so black or white filament stays visible on any theme. */
     slotOutline(slot: CfsSlot): string {
-        const hex = this.slotColor(slot).slice(1)
+        return this.colorOutline(this.slotColor(slot))
+    }
+
+    colorOutline(color: string): string {
+        const hex = color.slice(1)
         const [r, g, b] = [0, 2, 4].map((offset) => {
             const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255
             return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
@@ -852,7 +951,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-status-row,
-.cfs-chain,
 .cfs-footer {
     display: flex;
     flex-wrap: wrap;
@@ -1191,27 +1289,144 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-runout {
     margin-top: 12px;
-    padding: 8px 10px;
-    border: 1px solid rgba(128, 128, 128, 0.26);
-    border-radius: 10px;
-    font-size: 0.78rem;
+    padding: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 12px;
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.cfs-runout-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .cfs-runout-title {
-    margin-bottom: 4px;
+    font-size: 0.9rem;
     font-weight: 700;
 }
 
-.cfs-chain + .cfs-chain {
-    margin-top: 4px;
+.cfs-runout-state {
+    margin-left: auto;
+    padding: 1px 8px;
+    border-radius: 9px;
+    background: var(--v-success-base);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 16px;
 }
 
-.cfs-group-swatch {
+.cfs-runout-group {
+    padding: 8px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-left: 4px solid var(--cfs-group-color, rgba(128, 128, 128, 0.6));
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.07);
+    box-shadow: inset 1px 0 0 var(--cfs-slot-outline, transparent);
+}
+
+.cfs-runout-group + .cfs-runout-group {
+    margin-top: 8px;
+}
+
+.cfs-runout-group--active {
+    border-top-color: var(--v-primary-base);
+    border-right-color: var(--v-primary-base);
+    border-bottom-color: var(--v-primary-base);
+}
+
+.cfs-runout-group--sequence {
+    border-left-color: var(--v-primary-base);
+}
+
+.cfs-runout-group-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin-bottom: 6px;
+}
+
+.cfs-runout-group-name {
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.cfs-runout-group-note {
+    font-size: 0.74rem;
+    opacity: 0.75;
+}
+
+.cfs-runout-swatch,
+.cfs-runout-dot {
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    flex: 0 0 auto;
     border-radius: 50%;
-    box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.6);
+}
+
+.cfs-runout-swatch {
+    width: 14px;
+    height: 14px;
+    background: var(--cfs-group-color);
+    box-shadow:
+        0 0 0 1px rgba(128, 128, 128, 0.6),
+        0 0 0 3px var(--cfs-slot-outline, transparent);
+}
+
+.cfs-runout-chain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 2px;
+}
+
+.cfs-runout-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.45);
+    border-radius: 15px;
+    background: rgba(128, 128, 128, 0.12);
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cfs-runout-step--loaded {
+    border-color: var(--v-primary-base);
+    box-shadow: inset 0 0 0 1px var(--v-primary-base);
+}
+
+.cfs-runout-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--cfs-slot-color);
+    box-shadow:
+        0 0 0 1px rgba(128, 128, 128, 0.6),
+        0 0 0 3px var(--cfs-slot-outline, transparent);
+}
+
+.cfs-runout-percent {
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.cfs-runout-inuse {
+    padding: 0 6px;
+    border-radius: 8px;
+    background: var(--v-primary-base);
+    color: #fff;
+    font-size: 0.66rem;
+    line-height: 16px;
+}
+
+.cfs-runout-arrow {
+    margin: 0 2px;
+    opacity: 0.8;
 }
 
 .cfs-footer {
