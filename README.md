@@ -40,43 +40,50 @@
 
 ## K2-OpenHost fork
 
-This branch adds a native Creality K2/OpenHost CFS workflow while keeping the upstream Mainsail UI structure. The CFS panel reads the canonical `printer.objects.box` object and adds:
+This fork adds a native **Creality CFS** (Creality Filament System) panel and print-start mapping to Mainsail for [K2-OpenHost](https://github.com/MzTechnology97/K2-OpenHost), where a Creality K2 Pro runs Kalico + Moonraker on an external host. It reads only the Klipper `box` object through Moonraker; the rest of Mainsail is unchanged upstream code.
 
-- persistent custom filament library management;
-- manual slot assignment for non-RFID slots, including the external spool;
-- automatic display of RFID/Spoolman/library/manual slot provenance;
-- temperature/humidity and filament-path state;
-- logical-tool to physical-slot mapping in the normal Print dialog;
-- compatibility with the K2-OpenHost `BOX_PRINT_INFO` / `BOX_PRINT_START` API used by Jacob10383's OrcaSlicer mapping workflow.
+<p align="center">
+  <img src="docs/images/k2-openhost/cfs-panel-multi.png" alt="CFS panel with three units and the external spool" width="560">
+</p>
 
-Custom filament IDs may use the same five-character material IDs used by DnG-Crafts/K2-RFID. K2-OpenHost recognizes the corresponding `1xxxxx` RFID `filamentId` automatically, so the external K2-RFID writer can continue to be used for physical tag programming while Mainsail manages the OpenHost inventory. When a live tag contains an unknown material code, the affected slot exposes **Map RFID**; the filament editor is prefilled with the tag ID/color and saving the new profile resolves the slot immediately.
+### What it adds
 
-The fork also ships the full Creality + Generic K2-RFID system catalog exposed by the K2-OpenHost backend. The filament library keeps the free-text search bar and adds independent Brand and Material filters for navigating the larger catalog. It can create a custom profile from one of those read-only presets, including material type, nozzle range and pressure-advance metadata. Material is selected from the known catalog rather than typed freely. Non-RFID CFS slots use a dedicated Brand → Type → Profile → Color dialog, with the DnG-Crafts preset color palette plus a full custom color picker.
+| Feature              | What you get                                                                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CFS panel**        | One section per CFS unit with its own temperature/humidity and offline state, plus the external spool. Status chips for box state, loaded slot and clog/tangle detection                 |
+| **Filament path**    | CFS → encoder → buffer → printhead, with a CFS icon in the real bay colours, a nozzle that takes the filament colour, and a filament-coloured line through the stages that hold filament |
+| **Slot tiles**       | Colour stripe, RFID remaining gauge, material, name and temperature, source badge (RFID / Library / Spoolman / Manual), active state; load, edit, RFID and reread actions                |
+| **Runout swap**      | Groups of identical spools with order, strategy and remaining filament; the group in use is marked active                                                                                |
+| **Slot editor**      | Brand → Type → Profile → Colour for non-RFID spools, with a preset palette and custom colours                                                                                            |
+| **RFID**             | Read-only tag data, per-slot reread, and a one-click flow to create a profile for an unknown tag                                                                                         |
+| **Filament library** | Read-only Creality/Generic K2-RFID catalog plus custom profiles, with search and brand/material filters                                                                                  |
+| **Print mapping**    | The Print dialog maps every slicer tool to a CFS slot (auto-map + manual choice) and starts with `BOX_PRINT_START`                                                                       |
+| **Any screen**       | Layout follows the panel width (container queries): 4, 2 or 1 tile columns, compact tiles in narrow dashboard columns, larger touch targets                                              |
+| **Several CFS**      | Up to four units, with unit-aware slot names (`Slot 3` with one CFS, `B2·S4` with several)                                                                                               |
 
-The dashboard keeps CFS cards readable in a horizontal responsive grid: each slot shows the filament/profile name, material/brand/temperature metadata and remaining percentage/metres without clipping. RFID slots use a vivid spool indicator whose colored sector follows the remaining percentage; clicking **RFID** opens the complete read-only database metadata. Untagged slots use the pencil editor with Brand → Type → Profile → Color selection and an explicit **Reset slot** action. The header RFID-scan button runs `BOX_RFID_SCAN` across populated bays, and each physical slot also exposes a one-slot reread action.
+### Screenshots
 
-The CFS dashboard uses larger two-column slot cards, vivid spool colors and a remaining-filament sector gauge. The Print dialog's **Filament source** menu shows a live color dot for every CFS/EXT choice.
+| Filament path while printing                                                                   | Slot tile states                                                                     |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| <img src="docs/images/k2-openhost/cfs-path-printing-wide.png" alt="Filament path" width="400"> | <img src="docs/images/k2-openhost/cfs-slot-states.png" alt="Slot tiles" width="400"> |
 
-Slot assignments and RFID estimates are backend state, not browser state: they survive Mainsail reloads and printer restarts through the configured K2-OpenHost `filament_box.json`. A live slot removal clears only that bay assignment; confirmed runout also clears the depleted source after persisting its remaining estimate at zero. Startup restores occupied cached slots from JSON after one CFS presence-mask query and does not rescan every RFID tag unless the optional startup reread setting is explicitly enabled. The normal Print dialog and direct Orca/Moonraker starts use the same backend auto-mapper; exact profile matches win, Generic profiles are safe fallbacks when a slicer preset name is unavailable, and unresolved multicolor jobs are blocked rather than guessing.
+| Runout swap groups                                                                     | Print dialog mapping                                                                     |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-runout-multi.png" alt="Runout swap" width="400"> | <img src="docs/images/k2-openhost/cfs-print-source.png" alt="Print mapping" width="400"> |
 
-Detailed K2-OpenHost CFS behavior, persistence and validation boundaries are documented in [`docs/K2_CFS.md`](docs/K2_CFS.md) and [`K2-OPENHOST.md`](K2-OPENHOST.md).
+| Slot editor                                                                           | RFID information                                                                         |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-slot-editor.png" alt="Slot editor" width="400"> | <img src="docs/images/k2-openhost/cfs-rfid-info.png" alt="RFID information" width="400"> |
 
-## 
+| Phone                                                                                  | Filament library                                                                                |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-panel-phone.png" alt="Phone layout" width="260"> | <img src="docs/images/k2-openhost/cfs-filament-library.png" alt="Filament library" width="400"> |
 
-<img width="728" height="809" alt="image" src="https://github.com/user-attachments/assets/f31c121e-6e35-440f-acb6-1abb643e0497" /> <img width="349" height="260" alt="image" src="https://github.com/user-attachments/assets/3deb93e8-ea62-49b5-a6d8-63e8ec17dcf5" />
+Views with several CFS units use simulated status data; the development printer has one unit.
 
+### Documentation
 
-<img width="1102" height="1066" alt="image" src="https://github.com/user-attachments/assets/a7fd0b2a-557b-474d-aa12-3c4eff12cdcc" />
-<img width="1097" height="876" alt="image" src="https://github.com/user-attachments/assets/99b2a9c4-0e64-425b-9b59-235781ae48dd" />
+- [`docs/K2_CFS.md`](docs/K2_CFS.md): every K2-OpenHost feature, section by section, with the backend contract, commands, layout rules and validation status.
+- [`K2-OPENHOST.md`](K2-OPENHOST.md): how this fork fits the K2-OpenHost architecture, credits and update/deployment notes.
 
-
-<img width="718" height="567" alt="image" src="https://github.com/user-attachments/assets/742a0a96-4151-43eb-9d7c-5bcd1f9b4c6b" /> <img width="721" height="667" alt="image" src="https://github.com/user-attachments/assets/7011a1fc-70e0-4ac6-a47b-0bfa2f1ca43d" />
-<img width="685" height="619" alt="image" src="https://github.com/user-attachments/assets/83726864-3ae9-4054-b10b-99fa93381a2d" />
-<img width="671" height="746" alt="image" src="https://github.com/user-attachments/assets/264f7b3a-fcbb-421e-a0ce-defc235db40a" />
-
-
-
-
-
-
-
+Upstream Mainsail documentation: [docs.mainsail.xyz](https://docs.mainsail.xyz).
