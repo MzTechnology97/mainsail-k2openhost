@@ -112,30 +112,70 @@
                 </v-btn>
             </v-alert>
 
-            <section class="cfs-path" aria-label="Filament path">
+            <section class="cfs-path" aria-label="Filament path" :style="{ '--cfs-path-color': pathColor }">
                 <div class="cfs-path-steps">
                     <template v-for="(step, index) in pathSteps">
                         <div
                             :key="step.key"
                             class="cfs-path-step"
-                            :class="{ 'cfs-path-step--on': step.on, 'cfs-path-step--error': step.error }"
+                            :class="[
+                                `cfs-path-step--${step.key}`,
+                                { 'cfs-path-step--on': step.on, 'cfs-path-step--error': step.error },
+                            ]"
                             :title="step.hint">
-                            <div class="cfs-path-label">{{ step.label }}</div>
-                            <div class="cfs-path-value">
-                                <span
-                                    v-if="step.color"
-                                    class="cfs-path-dot"
-                                    :style="{ '--cfs-slot-color': step.color, '--cfs-slot-outline': step.outline }" />
-                                <span class="cfs-path-text">{{ step.value }}</span>
+                            <div class="cfs-path-icon">
+                                <!-- CFS unit: the four bays in their real filament colours. -->
+                                <svg
+                                    v-if="step.key === 'slot'"
+                                    class="cfs-path-cfs"
+                                    viewBox="0 0 52 36"
+                                    role="img"
+                                    aria-label="CFS">
+                                    <rect class="cfs-path-cfs-body" x="1" y="5" width="50" height="30" rx="5" />
+                                    <rect class="cfs-path-cfs-lid" x="1" y="1" width="50" height="7" rx="3" />
+                                    <g v-for="(spool, spoolIndex) in pathCfsSpools" :key="spoolIndex">
+                                        <circle
+                                            class="cfs-path-cfs-spool"
+                                            :class="{
+                                                'cfs-path-cfs-spool--empty': !spool.present,
+                                                'cfs-path-cfs-spool--active': spool.active,
+                                            }"
+                                            :cx="8.5 + spoolIndex * 11.7"
+                                            cy="21"
+                                            r="4.9"
+                                            :fill="spool.present ? spool.color : 'none'" />
+                                        <circle
+                                            class="cfs-path-cfs-hub"
+                                            :cx="8.5 + spoolIndex * 11.7"
+                                            cy="21"
+                                            r="1.4" />
+                                    </g>
+                                </svg>
+                                <v-icon v-else :size="step.key === 'printhead' ? 30 : 24" :color="step.iconColor">
+                                    {{ step.icon }}
+                                </v-icon>
                             </div>
-                            <div v-if="step.sub" class="cfs-path-sub">{{ step.sub }}</div>
+                            <div class="cfs-path-body">
+                                <div class="cfs-path-label">{{ step.label }}</div>
+                                <div class="cfs-path-value">
+                                    <span
+                                        v-if="step.color"
+                                        class="cfs-path-dot"
+                                        :style="{
+                                            '--cfs-slot-color': step.color,
+                                            '--cfs-slot-outline': step.outline,
+                                        }" />
+                                    <span class="cfs-path-text">{{ step.value }}</span>
+                                </div>
+                                <div v-if="step.sub" class="cfs-path-sub">{{ step.sub }}</div>
+                            </div>
                         </div>
                         <div
                             v-if="index < pathSteps.length - 1"
                             :key="`${step.key}-link`"
                             class="cfs-path-link"
                             :class="{ 'cfs-path-link--on': step.on && pathSteps[index + 1].on }">
-                            <v-icon small>{{ mdiArrowRightThin }}</v-icon>
+                            <span class="cfs-path-line" />
                         </div>
                     </template>
                 </div>
@@ -387,6 +427,7 @@
 import { Component, Mixins } from 'vue-property-decorator'
 import {
     mdiAlertCircleOutline,
+    mdiArrowCollapseHorizontal,
     mdiArrowRightThin,
     mdiCheckCircle,
     mdiCog,
@@ -399,6 +440,7 @@ import {
     mdiPencil,
     mdiPlay,
     mdiRefresh,
+    mdiRotateRight,
     mdiPrinter3dNozzle,
     mdiSwapHorizontal,
     mdiThermometer,
@@ -697,6 +739,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         hint: string
         on: boolean
         error: boolean
+        icon?: string
+        iconColor?: string
         sub?: string
         color?: string
         outline?: string
@@ -726,6 +770,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             {
                 key: 'encoder',
                 label: 'Encoder',
+                icon: mdiRotateRight,
+                iconColor: encoderOn ? 'success' : undefined,
                 value: encoderOn ? `${(path.encoder.position_mm as number).toFixed(1)} mm` : '--',
                 hint: 'CFS feed encoder; reports while the Box tracks a print',
                 on: encoderOn,
@@ -734,6 +780,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             {
                 key: 'buffer',
                 label: 'Buffer',
+                icon: mdiArrowCollapseHorizontal,
+                iconColor: bufferState === 0 || bufferState === 1 ? 'success' : undefined,
                 value: bufferText,
                 hint: `Buffer limit switches (state ${bufferState ?? '--'}, status ${path.buffer.status_code})`,
                 on: bufferState === 0 || bufferState === 1,
@@ -742,12 +790,35 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             {
                 key: 'printhead',
                 label: 'Printhead',
+                icon: mdiPrinter3dNozzle,
+                iconColor: head.error ? 'error' : head.detected ? this.pathColor : undefined,
                 value: head.error ? 'Error' : head.detected ? 'Triggered' : 'Not triggered',
                 hint: head.error ?? 'Filament sensor at the printhead',
                 on: head.detected,
                 error: !!head.error,
             },
         ]
+    }
+
+    /** Colour of the filament in the path; the line and nozzle take it on. */
+    get pathColor(): string {
+        const slot = this.loadedSlot
+        return slot && slot.present ? this.slotColor(slot) : '#4caf50'
+    }
+
+    /** Bays of the CFS that feeds the path (or the first one) for the icon. */
+    get pathCfsSpools(): { present: boolean; color: string; active: boolean }[] {
+        const units = this.sections.filter((section) => !section.external)
+        const unit = units.find((section) => section.slots.some((slot) => slot.loaded)) ?? units[0]
+        const slots = unit?.slots ?? []
+        return [0, 1, 2, 3].map((local) => {
+            const slot = slots.find((item) => cfsLocalSlot(item.index) === local + 1)
+            return {
+                present: !!slot?.present,
+                color: slot ? this.slotColor(slot) : '#757575',
+                active: !!slot?.loaded,
+            }
+        })
     }
 
     get clogText(): string {
@@ -1541,14 +1612,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-path-step {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    display: flex;
     align-items: center;
-    column-gap: 12px;
+    gap: 12px;
     min-width: 0;
     padding: 8px 10px;
     border: 1px solid rgba(128, 128, 128, 0.3);
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(128, 128, 128, 0.08);
 }
 
@@ -1560,6 +1630,64 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 .cfs-path-step--error {
     border-color: var(--v-error-base);
     box-shadow: inset 0 0 0 1px var(--v-error-base);
+}
+
+.cfs-path-icon {
+    display: flex;
+    flex: 0 0 52px;
+    align-items: center;
+    justify-content: center;
+    height: 36px;
+    opacity: 0.7;
+}
+
+.cfs-path-step--on .cfs-path-icon,
+.cfs-path-step--slot .cfs-path-icon {
+    opacity: 1;
+}
+
+.cfs-path-cfs {
+    width: 52px;
+    height: 36px;
+    overflow: visible;
+}
+
+.cfs-path-cfs-body {
+    fill: rgba(128, 128, 128, 0.22);
+    stroke: rgba(160, 160, 160, 0.75);
+    stroke-width: 1.5;
+}
+
+.cfs-path-cfs-lid {
+    fill: rgba(160, 160, 160, 0.45);
+}
+
+.cfs-path-cfs-spool {
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-width: 1;
+}
+
+.cfs-path-cfs-spool--empty {
+    stroke: rgba(160, 160, 160, 0.7);
+    stroke-dasharray: 2 1.5;
+}
+
+.cfs-path-cfs-spool--active {
+    stroke: var(--v-success-base);
+    stroke-width: 2.4;
+}
+
+.cfs-path-cfs-hub {
+    fill: rgba(20, 20, 20, 0.85);
+}
+
+.cfs-path-body {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 12px;
+    min-width: 0;
 }
 
 .cfs-path-label {
@@ -1590,11 +1718,11 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 .cfs-path-sub {
     grid-column: 2;
     overflow: hidden;
-    text-align: right;
     font-size: 0.74rem;
-    opacity: 0.75;
+    text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
+    opacity: 0.75;
 }
 
 .cfs-path-dot {
@@ -1608,23 +1736,27 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         0 0 0 3px var(--cfs-slot-outline, transparent);
 }
 
+/* Filament line between two stages, in the loaded filament colour. */
 .cfs-path-link {
     display: flex;
+    align-items: center;
     justify-content: center;
-    height: 18px;
-    opacity: 0.45;
+    height: 16px;
+    padding-left: 36px;
+    justify-content: flex-start;
 }
 
-.cfs-path-link .v-icon {
-    transform: rotate(90deg);
+.cfs-path-line {
+    position: relative;
+    width: 3px;
+    height: 100%;
+    border-radius: 2px;
+    background: repeating-linear-gradient(to bottom, rgba(128, 128, 128, 0.55) 0 3px, transparent 3px 6px);
 }
 
-.cfs-path-link--on {
-    opacity: 1;
-}
-
-.cfs-path-link--on .v-icon {
-    color: var(--v-success-base) !important;
+.cfs-path-link--on .cfs-path-line {
+    background: var(--cfs-path-color);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
 
 .cfs-path-actions {
@@ -1633,7 +1765,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     margin-top: 8px;
 }
 
-/* Wide panel: the four stages in one row, like the stock Creality layout. */
+/* Wide panel: the four stages in one row, CFS on the left, nozzle on the right. */
 @container (min-width: 560px) {
     .cfs-path-steps {
         flex-direction: row;
@@ -1641,13 +1773,24 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     .cfs-path-step {
-        display: flex;
         flex: 1 1 0;
         flex-direction: column;
         align-items: flex-start;
+        gap: 6px;
+        min-height: 96px;
+    }
+
+    .cfs-path-icon {
+        flex-basis: auto;
         justify-content: flex-start;
-        gap: 4px;
-        min-height: 58px;
+    }
+
+    .cfs-path-body {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        width: 100%;
     }
 
     .cfs-path-value {
@@ -1661,13 +1804,16 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     .cfs-path-link {
-        align-items: center;
-        width: 24px;
+        width: 22px;
         height: auto;
+        padding-left: 0;
+        justify-content: center;
     }
 
-    .cfs-path-link .v-icon {
-        transform: none;
+    .cfs-path-line {
+        width: 100%;
+        height: 3px;
+        background: repeating-linear-gradient(to right, rgba(128, 128, 128, 0.55) 0 3px, transparent 3px 6px);
     }
 }
 </style>
