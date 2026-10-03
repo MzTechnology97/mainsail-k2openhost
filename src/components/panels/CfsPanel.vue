@@ -385,18 +385,37 @@
                     v-for="group in runoutGroups"
                     :key="group.key"
                     class="cfs-runout-group"
-                    :class="{ 'cfs-runout-group--active': group.key === activeGroupKey }"
+                    :class="{
+                        'cfs-runout-group--active': group.key === activeGroupKey,
+                        'cfs-runout-group--editing': group.key === editingRunoutGroup,
+                    }"
                     :style="{ '--cfs-group-color': group.color, '--cfs-slot-outline': group.outline }">
                     <div class="cfs-runout-group-head">
                         <span class="cfs-runout-swatch" />
                         <span class="cfs-runout-group-name">{{ group.material }}</span>
                         <span v-if="group.key === activeGroupKey" class="cfs-runout-inuse">active</span>
                         <span class="cfs-runout-group-note">
-                            {{ group.steps.length }} spools
-                            <template v-if="group.lowestFirst">· lowest remaining first</template>
+                            {{ group.steps.length }} spools · {{ group.strategyText }}
                         </span>
+                        <v-spacer />
+                        <v-btn
+                            v-if="group.key !== editingRunoutGroup"
+                            x-small
+                            text
+                            class="cfs-runout-order-btn"
+                            :disabled="readOnlyMode || !runoutOrderSupported"
+                            :title="
+                                runoutOrderSupported
+                                    ? 'Choose the order in which these spools are used'
+                                    : 'Needs a newer K2-OpenHost backend'
+                            "
+                            @click="startRunoutOrder(group)">
+                            <v-icon x-small left>{{ mdiSortVariant }}</v-icon>
+                            Order
+                        </v-btn>
                     </div>
-                    <div class="cfs-runout-chain">
+
+                    <div v-if="group.key !== editingRunoutGroup" class="cfs-runout-chain">
                         <template v-for="(step, index) in group.steps">
                             <span
                                 :key="`${group.key}-${step.index}`"
@@ -419,6 +438,60 @@
                                 {{ mdiArrowRightThin }}
                             </v-icon>
                         </template>
+                    </div>
+
+                    <div v-else class="cfs-runout-editor">
+                        <div class="cfs-runout-editor-hint">
+                            Spools are used from first to last. Move them with the arrows, then save.
+                        </div>
+                        <ol class="cfs-runout-editor-list">
+                            <li
+                                v-for="(index, position) in runoutDraft"
+                                :key="`draft-${index}`"
+                                class="cfs-runout-editor-row"
+                                :style="{ '--cfs-slot-color': group.color, '--cfs-slot-outline': group.outline }">
+                                <span class="cfs-runout-editor-pos">{{ position + 1 }}</span>
+                                <span class="cfs-runout-dot" />
+                                <span class="cfs-runout-editor-text">
+                                    <span class="cfs-runout-editor-label">{{ slotLabelByIndex(index) }}</span>
+                                    <span class="cfs-runout-editor-meta">{{ runoutDraftMeta(index) }}</span>
+                                </span>
+                                <v-btn
+                                    icon
+                                    small
+                                    :disabled="position === 0"
+                                    :aria-label="`Use ${slotLabelByIndex(index)} earlier`"
+                                    @click="moveRunoutDraft(position, -1)">
+                                    <v-icon small>{{ mdiArrowUp }}</v-icon>
+                                </v-btn>
+                                <v-btn
+                                    icon
+                                    small
+                                    :disabled="position === runoutDraft.length - 1"
+                                    :aria-label="`Use ${slotLabelByIndex(index)} later`"
+                                    @click="moveRunoutDraft(position, 1)">
+                                    <v-icon small>{{ mdiArrowDown }}</v-icon>
+                                </v-btn>
+                            </li>
+                        </ol>
+                        <div class="cfs-runout-editor-actions">
+                            <v-btn x-small text @click="editingRunoutGroup = null">
+                                {{ $t('Buttons.Cancel') }}
+                            </v-btn>
+                            <v-btn
+                                x-small
+                                text
+                                :disabled="!group.manual"
+                                title="Use RFID remaining or slot order again"
+                                @click="resetRunoutOrder(group)">
+                                Automatic
+                            </v-btn>
+                            <v-spacer />
+                            <v-btn x-small color="primary" @click="saveRunoutOrder">
+                                <v-icon x-small left>{{ mdiContentSave }}</v-icon>
+                                {{ $t('Buttons.Save') }}
+                            </v-btn>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -444,9 +517,12 @@ import { Component, Mixins } from 'vue-property-decorator'
 import {
     mdiAlertCircleOutline,
     mdiArrowCollapseHorizontal,
+    mdiArrowDown,
     mdiArrowRightThin,
+    mdiArrowUp,
     mdiCheckCircle,
     mdiCog,
+    mdiContentSave,
     mdiDatabase,
     mdiEject,
     mdiNfc,
@@ -455,9 +531,10 @@ import {
     mdiPackageVariantClosed,
     mdiPencil,
     mdiPlay,
+    mdiPrinter3dNozzle,
     mdiRefresh,
     mdiRotateRight,
-    mdiPrinter3dNozzle,
+    mdiSortVariant,
     mdiSwapHorizontal,
     mdiThermometer,
     mdiTrayArrowUp,
@@ -550,6 +627,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
     mdiArrowRightThin = mdiArrowRightThin
     mdiSwapHorizontal = mdiSwapHorizontal
+    mdiSortVariant = mdiSortVariant
+    mdiArrowUp = mdiArrowUp
+    mdiArrowDown = mdiArrowDown
+    mdiContentSave = mdiContentSave
+    editingRunoutGroup: string | null = null
+    runoutDraft: number[] = []
     mdiCog = mdiCog
     mdiDatabase = mdiDatabase
     mdiEject = mdiEject
@@ -1002,6 +1085,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         color: string
         outline: string
         lowestFirst: boolean
+        manual: boolean
+        strategyText: string
         steps: { index: number; label: string; title: string; percent: number | null; loaded: boolean }[]
     }[] {
         return this.box.runout_groups.map((group) => {
@@ -1012,6 +1097,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
                 color,
                 outline: this.colorOutline(color),
                 lowestFirst: group.strategy === 'lowest_remaining_first',
+                manual: group.strategy === 'manual_order',
+                strategyText:
+                    group.strategy === 'manual_order'
+                        ? 'your order'
+                        : group.strategy === 'lowest_remaining_first'
+                          ? 'lowest remaining first'
+                          : 'slot order',
                 steps: group.detail.map((item) => {
                     const slot = this.box.slots.find((entry) => entry.index === item.slot)
                     return {
@@ -1024,6 +1116,51 @@ export default class CfsPanel extends Mixins(BaseMixin) {
                 }),
             }
         })
+    }
+
+    /** Manual runout order: needs the backend's runout_order status. */
+    get runoutOrderSupported(): boolean {
+        return Array.isArray(this.box.runout_order)
+    }
+
+    startRunoutOrder(group: { key: string; steps: { index: number }[] }): void {
+        this.runoutDraft = group.steps.map((step) => step.index)
+        this.editingRunoutGroup = group.key
+    }
+
+    moveRunoutDraft(position: number, delta: number): void {
+        const target = position + delta
+        if (target < 0 || target >= this.runoutDraft.length) return
+        const next = this.runoutDraft.slice()
+        ;[next[position], next[target]] = [next[target], next[position]]
+        this.runoutDraft = next
+    }
+
+    runoutDraftMeta(index: number): string {
+        const slot = this.box.slots.find((item) => item.index === index)
+        if (!slot) return ''
+        const parts = [slot.name || slot.material]
+        if (typeof slot.rfid_percent === 'number') parts.push(`${this.formatPercent(slot.rfid_percent)} left`)
+        else parts.push('no RFID')
+        return parts.filter(Boolean).join(' · ')
+    }
+
+    sendRunoutOrder(order: number[]): void {
+        const value = order.length ? order.join(',') : 'AUTO'
+        this.sendCommand(`_BOX_SET_RUNOUT_ORDER ORDER=${value}`, 'cfs_runout_order')
+        this.editingRunoutGroup = null
+    }
+
+    /** The group's new order first; other groups keep their place in the stored order. */
+    saveRunoutOrder(): void {
+        const draft = this.runoutDraft.slice()
+        const others = (this.box.runout_order ?? []).filter((index) => !draft.includes(index))
+        this.sendRunoutOrder([...draft, ...others])
+    }
+
+    resetRunoutOrder(group: { steps: { index: number }[] }): void {
+        const members = group.steps.map((step) => step.index)
+        this.sendRunoutOrder((this.box.runout_order ?? []).filter((index) => !members.includes(index)))
     }
 
     /** The group that the active runout sequence runs through, if any. */
@@ -1731,6 +1868,79 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     color: #fff;
     font-size: 0.66rem;
     line-height: 16px;
+}
+
+.cfs-runout-order-btn {
+    margin-left: auto;
+}
+
+.cfs-runout-group--editing {
+    border-color: var(--v-primary-base);
+}
+
+.cfs-runout-editor-hint {
+    margin-bottom: 6px;
+    font-size: 0.74rem;
+    opacity: 0.75;
+}
+
+.cfs-runout-editor-list {
+    display: grid;
+    gap: 6px;
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+}
+
+.cfs-runout-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 4px 4px 4px 8px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.cfs-runout-editor-pos {
+    display: inline-flex;
+    flex: 0 0 22px;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--v-primary-base);
+    color: #fff;
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.cfs-runout-editor-text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.cfs-runout-editor-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.cfs-runout-editor-meta {
+    overflow: hidden;
+    font-size: 0.72rem;
+    opacity: 0.75;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfs-runout-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .cfs-runout-arrow {

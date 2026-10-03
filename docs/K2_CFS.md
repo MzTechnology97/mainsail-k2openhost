@@ -175,10 +175,31 @@ When the backend's automatic runout swap is on (green **Auto** badge), spools of
 For each group the section shows:
 
 - its colour (side bar and swatch), material and spool count;
-- the strategy, for example `lowest remaining first`;
-- the order of the spools, with RFID remaining.
+- the strategy: `your order` (manual order), `lowest remaining first` (RFID spools) or `slot order`;
+- the order in which the spools are used, with RFID remaining.
 
 During a print the group in use is marked **active** and its loaded spool shows **in use**. A sequence that does not belong to any recognised group gets its own highlighted row.
+
+A replacement must have **exactly the same material and colour**. Without one the print pauses for runout.
+
+### Choosing the order of the spools
+
+Spools without RFID tell the printer nothing about how much filament they hold. With three identical spools, for example a full 1 kg spool in slot 1, 300 g in slot 2 and 100 g in slot 3, you can decide that the smallest one is used first:
+
+| Step                                                                                                 | Picture                                                                                                      |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 1. In the group, press **Order**.                                                                    | <img src="images/k2-openhost/cfs-runout-order-1-auto.png" alt="Runout group in automatic order" width="420"> |
+| 2. The spools are listed from first to last.                                                         | <img src="images/k2-openhost/cfs-runout-order-2-editor.png" alt="Order editor" width="420">                  |
+| 3. Move each spool with **↑** / **↓**: here slot 3 (100 g), then slot 2 (300 g), then slot 1 (1 kg). | <img src="images/k2-openhost/cfs-runout-order-3-moved.png" alt="Spools moved" width="420">                   |
+| 4. Press **Save**. The group now shows `your order` and the new sequence.                            | <img src="images/k2-openhost/cfs-runout-order-4-saved.png" alt="Saved order" width="420">                    |
+
+The order is stored on the printer (`_BOX_SET_RUNOUT_ORDER ORDER=2,1,0`) and survives restarts:
+
+- runout swap continues on the spools in that order;
+- when a print starts, the first spool of the order is chosen among identical spools;
+- a manual order wins over the RFID remaining rule; **Automatic** in the editor returns the group to it.
+
+It can be changed during a print as well; the next runout follows the new order. Spools of other groups keep their own order.
 
 ## 6. Settings menu
 
@@ -508,7 +529,7 @@ Fields used:
 | `boxes[]`                                                                                   | one entry per CFS: address, online, status/state codes, own temperature/humidity, slot indices (_optional; newer backend_) |
 | `temp_c`, `humidity_pct`                                                                    | environment of the box on the load path (fallback when `boxes` is missing)                                                 |
 | `load_path`                                                                                 | source slot, encoder, buffer, printhead sensor, clog detection                                                             |
-| `runout`, `runout_groups`, `runout_swap_enabled`                                            | runout sequence and groups                                                                                                 |
+| `runout`, `runout_groups`, `runout_swap_enabled`, `runout_order`                            | runout sequence, groups and the manual order (`runout_order` and slot `runout_rank`: _newer backend_)                      |
 | `recovery`                                                                                  | blocked state and reason                                                                                                   |
 | `filaments`, `materials`                                                                    | library and catalog; each filament carries `source` (_newer backend_)                                                      |
 | `filament_library`                                                                          | library file path, counts and error (_optional; newer backend_)                                                            |
@@ -530,6 +551,7 @@ _BOX_SLOT_SET / _BOX_SLOT_CLEAR / _BOX_SLOT_ASSIGN
 _BOX_FILAMENT_SET / _BOX_FILAMENT_DELETE
 _BOX_FILAMENT_RELOAD
 _BOX_SET_RUNOUT_SWAP ENABLE=<0|1>
+_BOX_SET_RUNOUT_ORDER ORDER=<slot>,<slot>,...   (0-based slots; ORDER=AUTO resets)
 _BOX_SET_UNLOAD_AFTER_PRINT ENABLE=<0|1>
 _BOX_SET_RFID_INSERT_READING ENABLE=<0|1>
 _BOX_SET_RFID_STARTUP_READING ENABLE=<0|1>

@@ -215,6 +215,8 @@ export interface CfsBoxState {
     filament_library?: CfsFilamentLibrary
     runout: CfsRunout | null
     runout_groups: CfsRunoutGroup[]
+    /** Physical slots in the user's runout order; empty = automatic (newer backend). */
+    runout_order?: number[]
     runout_swap_enabled: boolean
     unload_after_print_enabled: boolean
     rfid_insert_reading_enabled: boolean
