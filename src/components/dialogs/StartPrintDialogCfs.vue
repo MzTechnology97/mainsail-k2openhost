@@ -1,116 +1,111 @@
 <template>
-    <v-card-text class="py-3 px-0 bt-1">
-        <div v-if="waiting" class="px-6 py-2 d-flex align-center text--secondary">
-            <v-progress-circular indeterminate size="18" width="2" class="mr-3" />
-            Reading CFS filament metadata from the G-code…
+    <v-card-text class="cfs-map py-3 px-0 bt-1">
+        <div v-if="waiting" class="cfs-map-waiting">
+            <v-progress-circular indeterminate size="18" width="2" color="info" class="mr-3" />
+            Reading the filament metadata of this G-code…
         </div>
 
         <v-alert v-else-if="!tools.length" dense text type="info" class="mx-6 mb-0">
-            No Orca filament-usage metadata was found. Mainsail will use the normal print start path.
+            No OrcaSlicer filament metadata in this file: it starts with the normal Mainsail print.
         </v-alert>
 
-        <template v-else-if="!mappingEnabled">
-            <div class="px-6 pb-2">
-                <div class="text-subtitle-2 font-weight-bold">CFS filament metadata</div>
-                <div class="caption text--secondary">
-                    The CFS is currently read only. Filament metadata can still be inspected, but CFS slot mapping cannot be applied.
-                </div>
-            </div>
-
-            <v-row
-                v-for="(tool, index) in tools"
-                :key="tool.tool"
-                no-gutters
-                :class="{ 'bt-1': index > 0 }"
-                class="px-6 py-2">
-                <v-col cols="12" class="d-flex align-center">
-                    <div class="cfs-tool-color mr-3" :style="{ backgroundColor: toolColor(tool.color) }" />
-                    <div class="overflow-hidden">
-                        <div class="text-subtitle-1 font-weight-bold">T{{ tool.tool }}</div>
-                        <div class="body-2 text-truncate">{{ tool.name || tool.material || 'Filament' }}</div>
-                        <div class="caption text--secondary text-truncate">
-                            {{ tool.material || 'Unknown material' }}
-                            <template v-if="tool.color"> · {{ tool.color }}</template>
-                        </div>
-                    </div>
-                </v-col>
-            </v-row>
-
-            <v-alert v-if="readOnlyBlocksNormalPrint" dense text type="warning" class="mx-6 mt-3 mb-0">
-                {{ tools.length }} tools were detected in this G-code. Read-only mode cannot safely translate the file's T commands yet, so Print stays disabled. In operational mode each tool may be mapped either to a populated CFS slot or to the separate external spool.
-            </v-alert>
-            <v-alert v-else dense text type="info" class="mx-6 mt-3 mb-0">
-                A single filament tool was detected. It may be supplied by a CFS slot or by filament already loaded from the external spool path; normal Print remains available in read-only mode.
-            </v-alert>
-        </template>
-
         <template v-else>
-            <div class="px-6 pb-2 d-flex align-center">
-                <div>
-                    <div class="text-subtitle-2 font-weight-bold">CFS filament mapping</div>
-                    <div class="caption text--secondary">Assign every slicer tool to a populated CFS slot or to the separate external spool before printing.</div>
+            <div class="cfs-map-header">
+                <div class="cfs-map-heading">
+                    <h3>{{ mappingEnabled ? 'CFS filament mapping' : 'CFS filament metadata' }}</h3>
+                    <div class="cfs-map-subtitle">
+                        <template v-if="mappingEnabled">
+                            Choose the CFS slot or the external spool for each slicer tool.
+                        </template>
+                        <template v-else>The CFS is read only: tools can be inspected but not mapped.</template>
+                    </div>
                 </div>
-                <v-spacer />
-                <v-btn small text color="primary" :disabled="!box.driver_ready" @click="autoMap">
+                <v-btn
+                    v-if="mappingEnabled"
+                    small
+                    outlined
+                    color="primary"
+                    :disabled="!box.driver_ready"
+                    @click="autoMap">
+                    <v-icon left small>{{ mdiAutoFix }}</v-icon>
                     Auto map
                 </v-btn>
             </div>
 
-            <v-alert v-if="!box.driver_ready" dense text type="warning" class="mx-6 mb-2">
-                CFS slots are not ready yet. Wait for Box discovery before starting the mapped print.
+            <v-alert v-if="mappingEnabled && !box.driver_ready" dense text type="warning" class="mx-6 mb-2">
+                CFS slots are not ready yet. Wait for the Box to finish discovery before starting.
             </v-alert>
 
-            <v-row
-                v-for="(tool, index) in tools"
-                :key="tool.tool"
-                no-gutters
-                :class="{ 'bt-1': index > 0 }"
-                class="px-6 py-2">
-                <v-col cols="12" sm="6" class="d-flex align-center pr-sm-3 mb-2 mb-sm-0">
-                    <div class="cfs-tool-color mr-3" :style="{ backgroundColor: toolColor(tool.color) }" />
-                    <div class="overflow-hidden">
-                        <div class="text-subtitle-1 font-weight-bold">T{{ tool.tool }}</div>
-                        <div class="body-2 text-truncate">{{ tool.name || tool.material || 'Filament' }}</div>
-                        <div class="caption text--secondary text-truncate">
-                            {{ tool.material || 'Unknown material' }}
-                            <template v-if="tool.color"> · {{ tool.color }}</template>
+            <div class="cfs-map-rows">
+                <div
+                    v-for="tool in tools"
+                    :key="tool.tool"
+                    class="cfs-map-row"
+                    :class="`cfs-map-row--${quality(tool).kind}`">
+                    <div class="cfs-map-tool">
+                        <span class="cfs-map-badge">T{{ tool.tool }}</span>
+                        <span class="cfs-map-spool" :style="{ background: toolColor(tool.color) }" />
+                        <div class="cfs-map-text">
+                            <div class="cfs-map-name">{{ tool.name || tool.material || 'Filament' }}</div>
+                            <div class="cfs-map-meta">
+                                <span class="cfs-map-material">{{ tool.material || '?' }}</span>
+                                <span v-if="tool.color">{{ tool.color }}</span>
+                            </div>
                         </div>
                     </div>
-                </v-col>
 
-                <v-col cols="12" sm="6" class="d-flex align-center">
-                    <v-select
-                        :value="mappedSlot(tool.tool)"
-                        :items="slotItems"
-                        item-text="text"
-                        item-value="value"
-                        item-disabled="disabled"
-                        dense
-                        outlined
-                        hide-details
-                        label="Filament source"
-                        @change="setMapping(tool.tool, $event)">
-                        <template #selection="{ item }">
-                            <span class="cfs-source-dot mr-2" :style="{ backgroundColor: item.color }" />
-                            <span class="text-truncate">{{ item.text }}</span>
-                        </template>
-                        <template #item="{ item }">
-                            <div class="d-flex align-center min-width-0 py-1">
-                                <span class="cfs-source-dot mr-3" :style="{ backgroundColor: item.color }" />
-                                <div class="min-width-0">
-                                    <div class="body-2 text-truncate">{{ item.text }}</div>
-                                    <div v-if="item.meta" class="caption text--secondary text-truncate">
-                                        {{ item.meta }}
+                    <template v-if="mappingEnabled">
+                        <v-icon class="cfs-map-arrow">{{ mdiArrowRightThin }}</v-icon>
+                        <div class="cfs-map-source">
+                            <v-select
+                                :value="mappedSlot(tool.tool)"
+                                :items="slotItems"
+                                item-text="text"
+                                item-value="value"
+                                item-disabled="disabled"
+                                dense
+                                outlined
+                                hide-details
+                                label="Filament source"
+                                @change="setMapping(tool.tool, $event)">
+                                <template #selection="{ item }">
+                                    <div class="cfs-map-selection">
+                                        <span class="cfs-source-dot mr-2" :style="{ backgroundColor: item.color }" />
+                                        <span class="text-truncate">{{ item.text }}</span>
                                     </div>
-                                </div>
-                            </div>
-                        </template>
-                    </v-select>
-                </v-col>
-            </v-row>
+                                </template>
+                                <template #item="{ item }">
+                                    <div class="d-flex align-center min-width-0 py-1">
+                                        <span class="cfs-source-dot mr-3" :style="{ backgroundColor: item.color }" />
+                                        <div class="min-width-0">
+                                            <div class="body-2 text-truncate">{{ item.text }}</div>
+                                            <div v-if="item.meta" class="caption text--secondary text-truncate">
+                                                {{ item.meta }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </v-select>
+                            <span class="cfs-map-quality" :class="`cfs-map-quality--${quality(tool).kind}`">
+                                {{ quality(tool).text }}
+                            </span>
+                        </div>
+                    </template>
+                </div>
+            </div>
 
-            <v-alert v-if="!mappingValid" dense text type="warning" class="mx-6 mt-3 mb-0">
-                Map every used tool to a present CFS slot or to the external spool.
+            <template v-if="!mappingEnabled">
+                <v-alert v-if="readOnlyBlocksNormalPrint" dense text type="warning" class="mx-6 mt-3 mb-0">
+                    {{ tools.length }} tools were found. Read-only mode cannot translate the file's T commands, so Print
+                    stays disabled. In operational mode each tool can be mapped to a CFS slot or the external spool.
+                </v-alert>
+                <v-alert v-else dense text type="info" class="mx-6 mt-3 mb-0">
+                    One filament tool was found. It can come from a CFS slot or from filament already loaded from the
+                    external spool, so Print stays available in read-only mode.
+                </v-alert>
+            </template>
+            <v-alert v-else-if="!mappingValid" dense text type="warning" class="mx-6 mt-3 mb-0">
+                Map every tool to a CFS slot with filament or to the external spool.
             </v-alert>
         </template>
     </v-card-text>
@@ -122,6 +117,7 @@ import BaseMixin from '@/components/mixins/base'
 import { FileStateGcodefile } from '@/store/files/types'
 import { CfsBoxState, CfsPrintInfo, CfsPrintTool, CfsSlot } from '@/types/cfs'
 import { cfsSlotLabel } from '@/plugins/cfsLabels'
+import { mdiArrowRightThin, mdiAutoFix } from '@mdi/js'
 
 interface SlotItem {
     text: string
@@ -136,6 +132,9 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     @Prop({ required: true }) declare readonly file: FileStateGcodefile
     @Prop({ required: true, default: '' }) declare readonly currentPath: string
     @Prop({ required: true, default: false }) declare readonly active: boolean
+
+    mdiArrowRightThin = mdiArrowRightThin
+    mdiAutoFix = mdiAutoFix
 
     waiting = false
     requestedFilename: string | null = null
@@ -240,6 +239,23 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         return parts.join(' · ')
     }
 
+    /** How well the chosen source matches the slicer tool. */
+    quality(tool: CfsPrintTool): { kind: 'exact' | 'material' | 'other' | 'none' | 'info'; text: string } {
+        if (!this.mappingEnabled) return { kind: 'info', text: '' }
+        const mapped = this.mapping[tool.tool]
+        const slot = this.box?.slots?.find((item) => item.index === mapped)
+        if (mapped === null || mapped === undefined || !slot) return { kind: 'none', text: 'Not mapped' }
+        if (slot.external && !slot.material) return { kind: 'material', text: 'External spool' }
+        const material = this.normalize(tool.material)
+        if (material && this.normalize(slot.material) !== material) {
+            return { kind: 'other', text: `Different material (${slot.material || 'not set'})` }
+        }
+        if (this.normalize(tool.color) && this.normalize(slot.color) === this.normalize(tool.color)) {
+            return { kind: 'exact', text: 'Same material and colour' }
+        }
+        return { kind: 'material', text: 'Same material' }
+    }
+
     normalize(value: string): string {
         return (value ?? '').trim().toUpperCase()
     }
@@ -279,8 +295,7 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
                 this.normalize(slot.material) === material &&
                 !!color &&
                 this.normalize(slot.color) === color
-            const materialMatch = (slot: CfsSlot): boolean =>
-                !!material && this.normalize(slot.material) === material
+            const materialMatch = (slot: CfsSlot): boolean => !!material && this.normalize(slot.material) === material
 
             // Prefer an actual matching CFS spool. Never silently map a tool
             // to an unrelated physical CFS slot just because that slot is populated.
@@ -401,13 +416,181 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
 </script>
 
 <style scoped>
-.cfs-tool-color {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+.cfs-map-waiting {
+    display: flex;
+    align-items: center;
+    padding: 8px 24px;
+    opacity: 0.8;
+}
+
+.cfs-map-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 24px 10px;
+}
+
+.cfs-map-heading {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cfs-map-heading h3 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.cfs-map-subtitle {
+    font-size: 0.78rem;
+    opacity: 0.7;
+}
+
+.cfs-map-rows {
+    display: grid;
+    gap: 8px;
+    padding: 0 24px;
+}
+
+.cfs-map-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.1fr);
+    align-items: center;
+    gap: 8px 10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-left-width: 4px;
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.06);
+}
+
+.cfs-map-row--exact {
+    border-left-color: var(--v-success-base);
+}
+
+.cfs-map-row--material {
+    border-left-color: var(--v-info-base);
+}
+
+.cfs-map-row--other {
+    border-left-color: var(--v-warning-base);
+}
+
+.cfs-map-row--none {
+    border-left-color: var(--v-error-base);
+}
+
+.cfs-map-row--info {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.cfs-map-tool {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.cfs-map-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: rgba(128, 128, 128, 0.25);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+/* Spool in the slicer colour, same style as the library cards. */
+.cfs-map-spool {
+    position: relative;
     flex: 0 0 auto;
-    border: 1px solid rgba(127, 127, 127, 0.55);
-    box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.08);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.35),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+        0 0 0 1px rgba(128, 128, 128, 0.5);
+}
+
+.cfs-map-spool::after {
+    content: '';
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.88);
+}
+
+.cfs-map-text {
+    min-width: 0;
+}
+
+.cfs-map-name {
+    overflow: hidden;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfs-map-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    opacity: 0.85;
+}
+
+.cfs-map-material {
+    padding: 0 6px;
+    border-radius: 6px;
+    background: rgba(128, 128, 128, 0.22);
+    font-weight: 700;
+}
+
+.cfs-map-arrow {
+    opacity: 0.7;
+}
+
+.cfs-map-source {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.cfs-map-quality {
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.cfs-map-quality--exact {
+    color: var(--v-success-base);
+}
+
+.cfs-map-quality--material {
+    color: var(--v-info-base);
+}
+
+.cfs-map-quality--other {
+    color: var(--v-warning-base);
+}
+
+.cfs-map-quality--none {
+    color: var(--v-error-base);
+}
+
+.cfs-map-selection {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 4px 0;
 }
 
 .cfs-source-dot {
@@ -416,10 +599,23 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     height: 16px;
     flex: 0 0 16px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.34);
-    box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.28),
-        0 1px 4px rgba(0, 0, 0, 0.4);
-    filter: saturate(1.25) brightness(1.05);
+    box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.6);
+}
+
+@media (max-width: 600px) {
+    .cfs-map-header,
+    .cfs-map-rows {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .cfs-map-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cfs-map-arrow {
+        justify-self: center;
+        transform: rotate(90deg);
+    }
 }
 </style>

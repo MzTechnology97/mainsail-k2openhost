@@ -1,124 +1,145 @@
 <template>
-    <v-dialog v-model="showDialog" max-width="720" scrollable eager>
-        <v-card>
-            <v-card-title class="d-flex align-center">
+    <v-dialog v-model="showDialog" :max-width="rfidManaged ? 620 : 900" scrollable eager :fullscreen="isMobile">
+        <v-card class="cfs-sd">
+            <v-card-title class="cfs-sd-title">
                 <v-icon class="mr-2">{{ rfidManaged ? mdiNfcVariant : mdiSpool }}</v-icon>
-                {{ cfsSlot ? slotLabel(cfsSlot) : 'CFS slot' }} · {{ rfidManaged ? 'RFID filament' : 'manual filament' }}
+                <div class="cfs-sd-heading">
+                    <div>{{ rfidManaged ? 'RFID filament' : 'Slot filament' }}</div>
+                    <div class="cfs-sd-subtitle">{{ subtitle }}</div>
+                </div>
                 <v-spacer />
-                <v-btn icon @click="close"><v-icon>{{ mdiClose }}</v-icon></v-btn>
+                <v-btn icon aria-label="Close" @click="close">
+                    <v-icon>{{ mdiClose }}</v-icon>
+                </v-btn>
             </v-card-title>
             <v-divider />
 
-            <v-card-text v-if="cfsSlot" class="pt-5">
+            <v-card-text v-if="cfsSlot" class="cfs-sd-body">
+                <!-- RFID sheet ----------------------------------------------------------------------- -->
                 <template v-if="rfidManaged">
-                    <v-alert dense text type="info" class="mb-4">
-                        RFID filament data is read-only and inherited from the filament database.
-                    </v-alert>
+                    <section class="cfs-sd-section">
+                        <h3>Filament on the tag</h3>
+                        <cfs-filament-card
+                            :filament="rfidCard"
+                            :badges="rfidBadges"
+                            :remaining="remainingPercent"
+                            accent />
+                    </section>
 
-                    <div class="d-flex align-center mb-4">
-                        <div class="cfs-rfid-swatch mr-3" :style="{ backgroundColor: rfidColor }" />
-                        <div>
-                            <div class="text-h6">{{ cfsSlot.material || 'Unknown material' }}</div>
-                            <div class="text--secondary">{{ rfidName }}</div>
+                    <section v-if="remainingPercent !== null" class="cfs-sd-section">
+                        <h3>Remaining</h3>
+                        <div class="cfs-sd-remaining">
+                            <div class="cfs-sd-remaining-track">
+                                <span
+                                    class="cfs-sd-remaining-fill"
+                                    :style="{ width: `${remainingPercent}%`, background: rfidColor }" />
+                            </div>
+                            <div class="cfs-sd-remaining-text">
+                                <strong>{{ formatPercent(remainingPercent) }}</strong>
+                                <span v-if="remainingMetres">{{ remainingMetres }}</span>
+                            </div>
                         </div>
+                    </section>
+
+                    <section class="cfs-sd-section">
+                        <h3>Tag details</h3>
+                        <dl class="cfs-sd-details">
+                            <template v-for="row in rfidRows">
+                                <dt :key="`${row.label}-label`">{{ row.label }}</dt>
+                                <dd :key="`${row.label}-value`">
+                                    <span v-if="row.color" class="cfs-sd-dot" :style="{ backgroundColor: row.color }" />
+                                    <code v-if="row.code">{{ row.value }}</code>
+                                    <template v-else>{{ row.value }}</template>
+                                </dd>
+                            </template>
+                        </dl>
+                    </section>
+
+                    <p class="cfs-sd-note">
+                        <v-icon x-small class="mr-1">{{ mdiInformationOutline }}</v-icon>
+                        RFID data is read only and comes from the tag and the filament library. Remove the tagged spool
+                        to assign this slot manually.
+                    </p>
+                </template>
+
+                <!-- Manual slot editor ----------------------------------------------------------------- -->
+                <div v-else class="cfs-sd-split">
+                    <div class="cfs-sd-main">
+                        <section class="cfs-sd-section">
+                            <h3>Profile</h3>
+                            <div class="cfs-sd-grid">
+                                <v-select
+                                    v-model="brand"
+                                    :items="brandOptions"
+                                    dense
+                                    outlined
+                                    clearable
+                                    hide-details
+                                    label="Brand"
+                                    @change="onBrandChanged" />
+                                <v-select
+                                    v-model="material"
+                                    :items="materialOptions"
+                                    dense
+                                    outlined
+                                    clearable
+                                    hide-details
+                                    label="Material"
+                                    @change="onMaterialChanged" />
+                                <v-autocomplete
+                                    v-model="selectedId"
+                                    :items="profileItems"
+                                    item-text="text"
+                                    item-value="value"
+                                    dense
+                                    outlined
+                                    hide-details
+                                    label="Filament profile"
+                                    no-data-text="No matching profile in the library"
+                                    class="cfs-sd-wide"
+                                    @change="loadSelected">
+                                    <template #item="{ item }">
+                                        <span class="cfs-sd-dot mr-3" :style="{ backgroundColor: item.color }" />
+                                        <v-list-item-content>
+                                            <v-list-item-title>{{ item.name }}</v-list-item-title>
+                                            <v-list-item-subtitle>{{ item.detail }}</v-list-item-subtitle>
+                                        </v-list-item-content>
+                                    </template>
+                                </v-autocomplete>
+                            </div>
+                            <div class="cfs-sd-hint">
+                                {{ matchingProfiles.length }} matching profiles. Brand and material narrow the list.
+                            </div>
+                        </section>
+
+                        <section class="cfs-sd-section">
+                            <cfs-color-picker v-model="color" label="Colour of this spool" />
+                        </section>
                     </div>
 
-                    <v-simple-table dense>
-                        <tbody>
-                            <tr><th>Material</th><td>{{ cfsSlot.material || '—' }}</td></tr>
-                            <tr><th>Full name</th><td>{{ rfidName }}</td></tr>
-                            <tr><th>Brand</th><td>{{ rfidBrand }}</td></tr>
-                            <tr>
-                                <th>Color</th>
-                                <td>
-                                    <span class="cfs-rfid-mini-swatch mr-2" :style="{ backgroundColor: rfidColor }" />
-                                    <code>{{ rfidColor }}</code>
-                                </td>
-                            </tr>
-                            <tr><th>RFID code</th><td><code>{{ cfsSlot.rfid_code || '—' }}</code></td></tr>
-                            <tr><th>Filament ID</th><td><code>{{ cfsSlot.filament_id || '—' }}</code></td></tr>
-                            <tr><th>Nozzle temperature</th><td>{{ rfidTemperatureRange }}</td></tr>
-                            <tr><th>Pressure advance</th><td>{{ rfidPressureAdvanceText }}</td></tr>
-                            <tr><th>Remaining</th><td>{{ rfidRemainingText }}</td></tr>
-                        </tbody>
-                    </v-simple-table>
-                </template>
-
-                <template v-else>
-                    <v-row dense>
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Brand</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8">
-                            <v-select
-                                v-model="brand"
-                                :items="brandOptions"
-                                dense
-                                outlined
-                                hide-details
-                                @change="onBrandChanged" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Type</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8">
-                            <v-select
-                                v-model="material"
-                                :items="materialOptions"
-                                dense
-                                outlined
-                                hide-details
-                                @change="onMaterialChanged" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Name</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8">
-                            <v-select
-                                v-model="selectedId"
-                                :items="profileItems"
-                                item-text="text"
-                                item-value="value"
-                                dense
-                                outlined
-                                hide-details
-                                no-data-text="No matching saved profile"
-                                @change="loadSelected" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Color</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8">
-                            <cfs-color-picker v-model="color" label="" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Nozzle temperature</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8" class="d-flex align-center">
-                            <span>{{ temperatureRange }}</span>
-                        </v-col>
-
-                        <v-col cols="12" sm="4" class="d-flex align-center">
-                            <strong>Pressure advance</strong>
-                        </v-col>
-                        <v-col cols="12" sm="8" class="d-flex align-center">
-                            <span>{{ pressureAdvanceText }}</span>
-                        </v-col>
-                    </v-row>
-
-                    <v-alert v-if="selectedProfile && selectedProfile.system" dense text type="info" class="mt-4 mb-0">
-                        System preset from the filament database. The selected color is stored on this slot only.
-                    </v-alert>
-                </template>
+                    <aside class="cfs-sd-preview">
+                        <div class="cfs-sd-label">Preview</div>
+                        <cfs-filament-card
+                            :filament="previewCard"
+                            :badges="previewBadges"
+                            accent
+                            placeholder="Choose a profile" />
+                        <p class="cfs-sd-note">
+                            The profile comes from the library; the colour is stored on this slot only.
+                        </p>
+                        <div class="cfs-sd-label mt-4">Currently in the slot</div>
+                        <div class="cfs-sd-current">
+                            <span class="cfs-sd-dot" :style="{ backgroundColor: validColor(cfsSlot.color) }" />
+                            <span>{{ currentText }}</span>
+                        </div>
+                    </aside>
+                </div>
             </v-card-text>
 
             <v-divider />
-            <v-card-actions>
+            <v-card-actions class="cfs-sd-actions">
                 <v-btn v-if="cfsSlot && !rfidManaged" text color="error" @click="clearSlot">
+                    <v-icon left small>{{ mdiEraser }}</v-icon>
                     Reset slot
                 </v-btn>
                 <v-btn
@@ -140,9 +161,10 @@
                     Read external RFID
                 </v-btn>
                 <v-spacer />
-                <v-btn text @click="close">{{ rfidManaged ? $t('Buttons.Close') : 'Cancel' }}</v-btn>
+                <v-btn text @click="close">{{ rfidManaged ? $t('Buttons.Close') : $t('Buttons.Cancel') }}</v-btn>
                 <v-btn v-if="cfsSlot && !rfidManaged" color="primary" :disabled="!canSave" @click="save">
-                    Save
+                    <v-icon left>{{ mdiContentSave }}</v-icon>
+                    {{ $t('Buttons.Save') }}
                 </v-btn>
             </v-card-actions>
         </v-card>
@@ -153,22 +175,38 @@
 import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
+import CfsFilamentCard, { CfsFilamentCardBadge, CfsFilamentCardData } from '@/components/cfs/CfsFilamentCard.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
 import { cfsSlotLabel } from '@/plugins/cfsLabels'
-import { mdiClose, mdiNfc, mdiNfcVariant, mdiPackageVariantClosed, mdiRefresh } from '@mdi/js'
+import {
+    mdiClose,
+    mdiContentSave,
+    mdiEraser,
+    mdiInformationOutline,
+    mdiNfc,
+    mdiNfcVariant,
+    mdiPackageVariantClosed,
+    mdiRefresh,
+} from '@mdi/js'
 
-interface SelectItem {
-    text: string
+interface ProfileItem {
     value: string
+    text: string
+    name: string
+    detail: string
+    color: string
 }
 
-@Component({ components: { CfsColorPicker } })
+@Component({ components: { CfsColorPicker, CfsFilamentCard } })
 export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
     @Prop({ type: Object, default: null }) readonly cfsSlot!: CfsSlot | null
 
     mdiClose = mdiClose
+    mdiContentSave = mdiContentSave
+    mdiEraser = mdiEraser
+    mdiInformationOutline = mdiInformationOutline
     mdiNfc = mdiNfc
     mdiNfcVariant = mdiNfcVariant
     mdiSpool = mdiPackageVariantClosed
@@ -179,9 +217,19 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     brand = ''
     color = '#808080'
 
+    get isMobile(): boolean {
+        return this.$vuetify.breakpoint.xsOnly
+    }
+
+    get subtitle(): string {
+        if (!this.cfsSlot) return ''
+        const label = cfsSlotLabel(this.cfsSlot)
+        return this.rfidManaged ? `${label} · read only` : `${label} · manual assignment`
+    }
+
     get filaments(): CfsFilament[] {
         return Object.values(this.box.filaments ?? {}).sort((a, b) => {
-            if (!!a.system !== !!b.system) return a.system ? -1 : 1
+            if (!!a.system !== !!b.system) return a.system ? 1 : -1
             return (a.name || a.id).localeCompare(b.name || b.id)
         })
     }
@@ -195,40 +243,76 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     get rfidName(): string {
-        return this.rfidProfile?.name || this.cfsSlot?.name || '—'
+        return this.rfidProfile?.name || this.cfsSlot?.name || ''
     }
 
     get rfidBrand(): string {
-        return this.rfidProfile?.brand || this.cfsSlot?.brand || '—'
+        return this.rfidProfile?.brand || this.cfsSlot?.brand || ''
     }
 
     get rfidColor(): string {
         return this.validColor(this.cfsSlot?.color || this.rfidProfile?.color || '#808080')
     }
 
-    get rfidTemperatureRange(): string {
-        const item = this.rfidProfile
-        if (item?.min_temp !== null && item?.min_temp !== undefined &&
-            item?.max_temp !== null && item?.max_temp !== undefined) {
-            return `${item.min_temp} ~ ${item.max_temp} °C`
+    get rfidCard(): CfsFilamentCardData {
+        const profile = this.rfidProfile
+        return {
+            id: this.cfsSlot?.filament_id || profile?.id || '',
+            name: this.rfidName,
+            material: this.cfsSlot?.material || profile?.material || '',
+            brand: this.rfidBrand,
+            color: this.rfidColor,
+            target_temp: profile?.target_temp ?? this.cfsSlot?.target_temp ?? null,
+            min_temp: profile?.min_temp ?? null,
+            max_temp: profile?.max_temp ?? null,
+            pressure_advance: profile?.pressure_advance ?? this.cfsSlot?.pressure_advance ?? null,
+            spoolman_id: this.cfsSlot?.spoolman_id ?? null,
         }
-        const target = item?.target_temp ?? this.cfsSlot?.target_temp
-        return target !== null && target !== undefined ? `${target} °C` : '—'
     }
 
-    get rfidPressureAdvanceText(): string {
-        const value = this.rfidProfile?.pressure_advance ?? this.cfsSlot?.pressure_advance
-        return typeof value === 'number' && Number.isFinite(value)
-            ? value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-            : '—'
+    get rfidBadges(): CfsFilamentCardBadge[] {
+        const badges: CfsFilamentCardBadge[] = [{ text: 'RFID', kind: 'info' }, { text: 'Read only' }]
+        if (this.cfsSlot?.rfid_code) badges.push({ text: `Code ${this.cfsSlot.rfid_code}` })
+        if (this.rfidProfile?.system) badges.push({ text: 'System profile' })
+        return badges
     }
 
-    get rfidRemainingText(): string {
-        if (!this.cfsSlot || this.cfsSlot.rfid_percent === null) return '—'
-        const percent = Math.max(0, Math.min(100, this.cfsSlot.rfid_percent))
-        const parts = [`${percent.toFixed(percent < 10 ? 1 : 0)}%`]
-        if (this.cfsSlot.rfid_remaining_m !== null) parts.push(`${this.cfsSlot.rfid_remaining_m.toFixed(1)} m`)
-        return parts.join(' · ')
+    get remainingPercent(): number | null {
+        const value = this.cfsSlot?.rfid_percent
+        return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : null
+    }
+
+    get remainingMetres(): string {
+        const left = this.cfsSlot?.rfid_remaining_m
+        if (typeof left !== 'number' || !Number.isFinite(left)) return ''
+        const total = this.cfsSlot?.rfid_total_m
+        return typeof total === 'number' && Number.isFinite(total) && total > 0
+            ? `${left.toFixed(1)} m of ${total.toFixed(0)} m left`
+            : `${left.toFixed(1)} m left`
+    }
+
+    get rfidRows(): { label: string; value: string; code?: boolean; color?: string }[] {
+        const card = this.rfidCard
+        const temp =
+            card.min_temp !== null && card.max_temp !== null
+                ? `${card.min_temp}–${card.max_temp} °C${card.target_temp !== null ? ` · target ${card.target_temp} °C` : ''}`
+                : card.target_temp !== null
+                  ? `${card.target_temp} °C`
+                  : '—'
+        const pa =
+            typeof card.pressure_advance === 'number' && Number.isFinite(card.pressure_advance)
+                ? card.pressure_advance.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
+                : '—'
+        return [
+            { label: 'Material', value: card.material || '—' },
+            { label: 'Full name', value: card.name || '—' },
+            { label: 'Brand', value: card.brand || '—' },
+            { label: 'Colour', value: this.rfidColor, code: true, color: this.rfidColor },
+            { label: 'RFID code', value: this.cfsSlot?.rfid_code || '—', code: true },
+            { label: 'Filament ID', value: this.cfsSlot?.filament_id || '—', code: true },
+            { label: 'Nozzle temperature', value: temp },
+            { label: 'Pressure advance', value: pa },
+        ]
     }
 
     get brandOptions(): string[] {
@@ -256,10 +340,13 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         })
     }
 
-    get profileItems(): SelectItem[] {
+    get profileItems(): ProfileItem[] {
         return this.matchingProfiles.map((item) => ({
             value: item.id,
-            text: `${item.name || item.id}${item.system ? ' · System' : ''}`,
+            name: item.name || item.id,
+            detail: `${item.brand || 'Generic'} · ${item.material} · ${item.system ? 'System' : 'Custom'} · ${item.id}`,
+            text: `${item.name || item.id} · ${item.brand || 'Generic'} · ${item.material} · ${item.id}`,
+            color: this.validColor(item.color),
         }))
     }
 
@@ -268,25 +355,31 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         return this.box.filaments?.[this.selectedId] ?? null
     }
 
-    get temperatureRange(): string {
-        const item = this.selectedProfile
-        if (!item) return '—'
-        if (item.min_temp !== null && item.max_temp !== null) return `${item.min_temp} ~ ${item.max_temp} °C`
-        if (item.target_temp !== null) return `${item.target_temp} °C`
-        return '—'
+    get previewCard(): CfsFilamentCardData {
+        const profile = this.selectedProfile
+        if (!profile) return { material: this.material, brand: this.brand, color: this.color }
+        return { ...profile, color: this.color }
     }
 
-    get pressureAdvanceText(): string {
-        const value = this.selectedProfile?.pressure_advance
-        return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '') : '—'
+    get previewBadges(): CfsFilamentCardBadge[] {
+        const profile = this.selectedProfile
+        if (!profile) return []
+        return [profile.system ? { text: 'System' } : { text: 'Custom', kind: 'info' }, { text: 'Library' }]
+    }
+
+    get currentText(): string {
+        const slot = this.cfsSlot
+        if (!slot) return ''
+        if (!slot.material) return slot.present || slot.external ? 'Not set' : 'Empty'
+        return [slot.material, slot.name || slot.brand].filter(Boolean).join(' · ')
     }
 
     get canSave(): boolean {
         return !!this.cfsSlot && !this.rfidManaged && !!this.selectedProfile
     }
 
-    slotLabel(slot: CfsSlot): string {
-        return cfsSlotLabel(slot)
+    formatPercent(value: number): string {
+        return `${value.toFixed(value < 10 ? 1 : 0)}%`
     }
 
     close(): void {
@@ -294,13 +387,14 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     onBrandChanged(): void {
-        if (this.selectedProfile?.brand !== this.brand) this.selectedId = null
-        const materials = this.materialOptions
-        if (this.material && !materials.includes(this.material)) this.material = ''
+        if (this.selectedProfile && this.brand && this.selectedProfile.brand !== this.brand) this.selectedId = null
+        if (this.material && !this.materialOptions.includes(this.material)) this.material = ''
     }
 
     onMaterialChanged(): void {
-        if (this.selectedProfile?.material !== this.material) this.selectedId = null
+        if (this.selectedProfile && this.material && this.selectedProfile.material !== this.material) {
+            this.selectedId = null
+        }
     }
 
     loadSelected(id: string | null): void {
@@ -321,10 +415,11 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         if (this.cfsSlot.filament_id && this.box.filaments?.[this.cfsSlot.filament_id]) {
             return this.box.filaments[this.cfsSlot.filament_id]
         }
-        const candidates = this.filaments.filter((item) =>
-            (!this.cfsSlot?.brand || item.brand === this.cfsSlot.brand) &&
-            (!this.cfsSlot?.material || item.material === this.cfsSlot.material) &&
-            (!this.cfsSlot?.name || item.name === this.cfsSlot.name)
+        const candidates = this.filaments.filter(
+            (item) =>
+                (!this.cfsSlot?.brand || item.brand === this.cfsSlot.brand) &&
+                (!this.cfsSlot?.material || item.material === this.cfsSlot.material) &&
+                (!this.cfsSlot?.name || item.name === this.cfsSlot.name)
         )
         return candidates.length === 1 ? candidates[0] : null
     }
@@ -364,7 +459,9 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     escape(value: string): string {
-        return String(value ?? '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+        return String(value ?? '')
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
     }
 
     send(script: string): void {
@@ -389,26 +486,168 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
 </script>
 
 <style scoped>
-.cfs-rfid-swatch {
-    width: 50px;
-    height: 50px;
-    flex: 0 0 50px;
-    border-radius: 50%;
-    border: 2px solid rgba(127, 127, 127, 0.4);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+.cfs-sd-title {
+    flex-wrap: nowrap;
 }
 
-.cfs-rfid-mini-swatch {
+.cfs-sd-heading {
+    min-width: 0;
+    line-height: 1.2;
+}
+
+.cfs-sd-subtitle {
+    font-size: 0.78rem;
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+.cfs-sd-body {
+    padding-top: 16px !important;
+}
+
+.cfs-sd-section {
+    margin-bottom: 18px;
+}
+
+.cfs-sd-section h3,
+.cfs-sd-label {
+    margin-bottom: 10px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.cfs-sd-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 20px;
+    align-items: start;
+}
+
+.cfs-sd-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.cfs-sd-wide {
+    grid-column: 1 / -1;
+}
+
+.cfs-sd-hint,
+.cfs-sd-note {
+    margin: 8px 0 0;
+    font-size: 0.74rem;
+    opacity: 0.7;
+}
+
+.cfs-sd-preview {
+    position: sticky;
+    top: 0;
+}
+
+.cfs-sd-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px dashed rgba(128, 128, 128, 0.45);
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.cfs-sd-dot {
     display: inline-block;
-    width: 18px;
-    height: 18px;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
     vertical-align: middle;
     border-radius: 50%;
-    border: 1px solid rgba(127, 127, 127, 0.45);
+    box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.6);
 }
 
-::v-deep .v-data-table th {
-    width: 38%;
-    white-space: nowrap;
+.cfs-sd-remaining {
+    display: grid;
+    gap: 6px;
+}
+
+.cfs-sd-remaining-track {
+    height: 10px;
+    overflow: hidden;
+    border-radius: 5px;
+    background: rgba(128, 128, 128, 0.25);
+    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+}
+
+.cfs-sd-remaining-fill {
+    display: block;
+    height: 100%;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+
+.cfs-sd-remaining-text {
+    display: flex;
+    gap: 10px;
+    font-size: 0.85rem;
+}
+
+.cfs-sd-details {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 8px 18px;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid rgba(128, 128, 128, 0.28);
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.05);
+    font-size: 0.86rem;
+}
+
+.cfs-sd-details dt {
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.cfs-sd-details dd {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.cfs-sd-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+@media (max-width: 760px) {
+    .cfs-sd-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cfs-sd-preview {
+        position: static;
+        order: -1;
+    }
+}
+
+@media (max-width: 480px) {
+    .cfs-sd-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cfs-sd-details {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+    }
+
+    .cfs-sd-details dd {
+        margin-bottom: 8px;
+    }
 }
 </style>
