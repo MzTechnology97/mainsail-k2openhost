@@ -73,22 +73,13 @@
                     </div>
 
                     <div v-if="filteredFilaments.length" class="cfs-lib-grid">
-                        <article
+                        <cfs-filament-card
                             v-for="filament in filteredFilaments"
                             :key="filament.id"
-                            class="cfs-lib-card"
-                            :class="{ 'cfs-lib-card--custom': !filament.system }">
-                            <div class="cfs-lib-card-main">
-                                <span class="cfs-lib-spool" :style="spoolStyle(filament.color)" />
-                                <div class="cfs-lib-card-text">
-                                    <div class="cfs-lib-name" :title="filament.name || filament.id">
-                                        {{ filament.name || filament.id }}
-                                    </div>
-                                    <div class="cfs-lib-meta">
-                                        <span class="cfs-lib-material">{{ filament.material }}</span>
-                                        <span v-if="filament.brand">{{ filament.brand }}</span>
-                                    </div>
-                                </div>
+                            :filament="filament"
+                            :badges="cardBadges(filament)"
+                            :accent="!filament.system">
+                            <template #actions>
                                 <v-menu left offset-y>
                                     <template #activator="{ on, attrs }">
                                         <v-btn
@@ -130,38 +121,8 @@
                                         </v-list-item>
                                     </v-list>
                                 </v-menu>
-                            </div>
-
-                            <div class="cfs-lib-badges">
-                                <span class="cfs-lib-badge" :class="filament.system ? '' : 'cfs-lib-badge--custom'">
-                                    {{ filament.system ? 'System' : 'Custom' }}
-                                </span>
-                                <span v-if="usage(filament.id).length" class="cfs-lib-badge cfs-lib-badge--use">
-                                    In use · {{ usage(filament.id).join(', ') }}
-                                </span>
-                                <span v-if="filament.rfid_code" class="cfs-lib-badge" title="RFID material code">
-                                    RFID {{ filament.rfid_code }}
-                                </span>
-                            </div>
-
-                            <div class="cfs-lib-temp" :title="temperatureHint">
-                                <div class="cfs-lib-temp-track">
-                                    <span class="cfs-lib-temp-range" :style="rangeStyle(filament)" />
-                                    <span
-                                        v-if="filament.target_temp !== null"
-                                        class="cfs-lib-temp-target"
-                                        :style="{ left: `${tempPercent(filament.target_temp)}%` }" />
-                                </div>
-                                <span class="cfs-lib-temp-text">{{ temperatureText(filament) }}</span>
-                            </div>
-
-                            <div class="cfs-lib-card-foot">
-                                <span class="cfs-lib-id">{{ filament.id }}</span>
-                                <span v-if="filament.pressure_advance !== null">
-                                    PA {{ filament.pressure_advance }}
-                                </span>
-                                <span v-if="filament.spoolman_id !== null">Spoolman #{{ filament.spoolman_id }}</span>
-                                <v-spacer />
+                            </template>
+                            <template #foot>
                                 <v-menu v-if="assignTargets.length" top offset-y>
                                     <template #activator="{ on, attrs }">
                                         <v-btn
@@ -191,8 +152,8 @@
                                         </v-list-item>
                                     </v-list>
                                 </v-menu>
-                            </div>
-                        </article>
+                            </template>
+                        </cfs-filament-card>
                     </div>
 
                     <div v-else class="cfs-lib-empty">
@@ -370,41 +331,11 @@
 
                             <aside class="cfs-editor-preview">
                                 <div class="cfs-editor-preview-label">Preview</div>
-                                <article class="cfs-lib-card cfs-lib-card--custom">
-                                    <div class="cfs-lib-card-main">
-                                        <span class="cfs-lib-spool" :style="spoolStyle(form.color)" />
-                                        <div class="cfs-lib-card-text">
-                                            <div class="cfs-lib-name">
-                                                {{ form.name || form.id || 'Unnamed filament' }}
-                                            </div>
-                                            <div class="cfs-lib-meta">
-                                                <span class="cfs-lib-material">{{ form.material || '—' }}</span>
-                                                <span v-if="form.brand">{{ form.brand }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="cfs-lib-badges">
-                                        <span class="cfs-lib-badge cfs-lib-badge--custom">Custom</span>
-                                        <span v-if="form.rfid_code" class="cfs-lib-badge">
-                                            RFID {{ form.rfid_code }}
-                                        </span>
-                                    </div>
-                                    <div class="cfs-lib-temp">
-                                        <div class="cfs-lib-temp-track">
-                                            <span class="cfs-lib-temp-range" :style="rangeStyle(previewFilament)" />
-                                            <span
-                                                class="cfs-lib-temp-target"
-                                                :style="{ left: `${tempPercent(form.target_temp)}%` }" />
-                                        </div>
-                                        <span class="cfs-lib-temp-text">{{ temperatureText(previewFilament) }}</span>
-                                    </div>
-                                    <div class="cfs-lib-card-foot">
-                                        <span class="cfs-lib-id">{{ form.id || 'ID' }}</span>
-                                        <span v-if="validNumber(form.pressure_advance)">
-                                            PA {{ form.pressure_advance }}
-                                        </span>
-                                    </div>
-                                </article>
+                                <cfs-filament-card
+                                    :filament="previewFilament"
+                                    :badges="previewBadges"
+                                    accent
+                                    placeholder="Unnamed filament" />
                                 <p class="cfs-editor-preview-note">
                                     Saved in the printer's filament inventory and available to every slot, the print
                                     dialog's automatic mapping and RFID tags with the same code.
@@ -451,6 +382,7 @@
 import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
+import CfsFilamentCard, { CfsFilamentCardBadge } from '@/components/cfs/CfsFilamentCard.vue'
 import { CfsBoxState, CfsFilament } from '@/types/cfs'
 import { cfsBoxNumber, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 import {
@@ -486,10 +418,7 @@ interface FilamentForm {
 
 type Scope = 'all' | 'custom' | 'system' | 'used'
 
-const TEMP_SCALE_MIN = 150
-const TEMP_SCALE_MAX = 350
-
-@Component({ components: { CfsColorPicker } })
+@Component({ components: { CfsColorPicker, CfsFilamentCard } })
 export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
@@ -688,9 +617,9 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             target_temp: this.validNumber(this.form.target_temp) ? Number(this.form.target_temp) : null,
             min_temp: this.validNumber(this.form.min_temp) ? Number(this.form.min_temp) : null,
             max_temp: this.validNumber(this.form.max_temp) ? Number(this.form.max_temp) : null,
-            pressure_advance: null,
+            pressure_advance: this.validNumber(this.form.pressure_advance) ? Number(this.form.pressure_advance) : null,
             rfid_code: this.form.rfid_code,
-            spoolman_id: null,
+            spoolman_id: this.validNumber(this.form.spoolman_id) ? Number(this.form.spoolman_id) : null,
             system: false,
         }
     }
@@ -753,6 +682,20 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         return checks.every((check) => check === true)
     }
 
+    cardBadges(filament: CfsFilament): CfsFilamentCardBadge[] {
+        const badges: CfsFilamentCardBadge[] = [filament.system ? { text: 'System' } : { text: 'Custom', kind: 'info' }]
+        const used = this.usage(filament.id)
+        if (used.length) badges.push({ text: `In use · ${used.join(', ')}`, kind: 'success' })
+        if (filament.rfid_code) badges.push({ text: `RFID ${filament.rfid_code}`, title: 'RFID material code' })
+        return badges
+    }
+
+    get previewBadges(): CfsFilamentCardBadge[] {
+        const badges: CfsFilamentCardBadge[] = [{ text: 'Custom', kind: 'info' }]
+        if (this.form.rfid_code) badges.push({ text: `RFID ${this.form.rfid_code}` })
+        return badges
+    }
+
     usage(id: string): string[] {
         return this.usageMap[(id ?? '').toUpperCase()] ?? []
     }
@@ -779,38 +722,6 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
 
     color(value: string): string {
         return /^#[0-9a-f]{6}$/i.test(value ?? '') ? value : '#808080'
-    }
-
-    spoolStyle(value: string): Record<string, string> {
-        return { '--cfs-lib-color': this.color(value) }
-    }
-
-    tempPercent(value: number | null): number {
-        if (!this.validNumber(value)) return 0
-        const span = TEMP_SCALE_MAX - TEMP_SCALE_MIN
-        return Math.max(0, Math.min(100, ((Number(value) - TEMP_SCALE_MIN) / span) * 100))
-    }
-
-    rangeStyle(filament: CfsFilament): Record<string, string> {
-        const target = filament.target_temp
-        const min = filament.min_temp ?? (target !== null ? target - 5 : null)
-        const max = filament.max_temp ?? (target !== null ? target + 5 : null)
-        if (min === null || max === null) return { display: 'none' }
-        const left = this.tempPercent(min)
-        return { left: `${left}%`, width: `${Math.max(2, this.tempPercent(max) - left)}%` }
-    }
-
-    temperatureText(filament: CfsFilament): string {
-        const range =
-            filament.min_temp !== null && filament.max_temp !== null
-                ? `${filament.min_temp}–${filament.max_temp} °C`
-                : ''
-        const target = filament.target_temp !== null ? `target ${filament.target_temp} °C` : ''
-        return [range, target].filter(Boolean).join(' · ') || 'No temperature data'
-    }
-
-    get temperatureHint(): string {
-        return `Nozzle range on a ${TEMP_SCALE_MIN}–${TEMP_SCALE_MAX} °C scale; the marker is the target/flush temperature`
     }
 
     /** Next free numeric ID in the custom range, 5 digits like K2-RFID material IDs. */
@@ -1013,158 +924,8 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     gap: 10px;
 }
 
-.cfs-lib-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    padding: 12px;
-    border: 1px solid rgba(128, 128, 128, 0.28);
-    border-radius: 12px;
-    background: rgba(128, 128, 128, 0.06);
-}
-
-.cfs-lib-card--custom {
-    border-color: rgba(128, 128, 128, 0.45);
-    background: rgba(128, 128, 128, 0.1);
-}
-
-.cfs-lib-card-main {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-
-/* Spool: ring in the profile colour with a dark hub. */
-.cfs-lib-spool {
-    position: relative;
-    flex: 0 0 auto;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: var(--cfs-lib-color);
-    box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.35),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.2),
-        0 0 0 1px rgba(128, 128, 128, 0.5);
-}
-
-.cfs-lib-spool::after {
-    content: '';
-    position: absolute;
-    inset: 14px;
-    border-radius: 50%;
-    background: rgba(20, 20, 20, 0.85);
-}
-
-.cfs-lib-card-text {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.cfs-lib-name {
-    overflow: hidden;
-    font-size: 0.95rem;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.cfs-lib-meta {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-top: 2px;
-    font-size: 0.78rem;
-    opacity: 0.85;
-}
-
-.cfs-lib-material {
-    padding: 0 6px;
-    border-radius: 6px;
-    background: rgba(128, 128, 128, 0.22);
-    font-weight: 700;
-}
-
 .cfs-lib-more {
     align-self: flex-start;
-}
-
-.cfs-lib-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-}
-
-.cfs-lib-badge {
-    padding: 1px 7px;
-    border: 1px solid rgba(128, 128, 128, 0.45);
-    border-radius: 9px;
-    font-size: 0.68rem;
-    font-weight: 600;
-    line-height: 16px;
-}
-
-.cfs-lib-badge--custom {
-    border-color: var(--v-info-base);
-    color: var(--v-info-base);
-}
-
-.cfs-lib-badge--use {
-    border-color: var(--v-success-base);
-    color: var(--v-success-base);
-}
-
-.cfs-lib-temp {
-    display: grid;
-    gap: 4px;
-}
-
-.cfs-lib-temp-track {
-    position: relative;
-    height: 6px;
-    border-radius: 3px;
-    background: linear-gradient(90deg, rgba(66, 165, 245, 0.25), rgba(255, 167, 38, 0.25), rgba(239, 83, 80, 0.3));
-}
-
-.cfs-lib-temp-range {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    border-radius: 3px;
-    background: linear-gradient(90deg, #42a5f5, #ffa726, #ef5350);
-}
-
-.cfs-lib-temp-target {
-    position: absolute;
-    top: -3px;
-    width: 3px;
-    height: 12px;
-    margin-left: -1px;
-    border-radius: 2px;
-    background: #fff;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
-}
-
-.cfs-lib-temp-text {
-    font-size: 0.74rem;
-    opacity: 0.8;
-}
-
-.cfs-lib-card-foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 10px;
-    margin-top: auto;
-    font-size: 0.72rem;
-    opacity: 0.85;
-}
-
-.cfs-lib-id {
-    font-family: monospace;
 }
 
 .cfs-lib-dot {
