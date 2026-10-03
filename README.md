@@ -61,10 +61,22 @@ Slot assignments and RFID estimates are backend state, not browser state: they s
 
 Detailed K2-OpenHost CFS behavior, persistence and validation boundaries are documented in [`docs/K2_CFS.md`](docs/K2_CFS.md) and [`K2-OPENHOST.md`](K2-OPENHOST.md).
 
-## Getting Started
+## 
 
-<img width="721" height="459" alt="image" src="https://github.com/user-attachments/assets/a6e1af74-ba30-47e0-8e49-311fedb4d1fd" />
+<img width="728" height="809" alt="image" src="https://github.com/user-attachments/assets/f31c121e-6e35-440f-acb6-1abb643e0497" /> <img width="349" height="260" alt="image" src="https://github.com/user-attachments/assets/3deb93e8-ea62-49b5-a6d8-63e8ec17dcf5" />
 
-<img width="900" height="987" alt="image" src="https://github.com/user-attachments/assets/daad238c-0782-43da-816a-d09b9a8c926d" />
 
-<img width="903" height="847" alt="image" src="https://github.com/user-attachments/assets/3f11339a-56a2-403b-8701-56527337e5fc" />
+<img width="1102" height="1066" alt="image" src="https://github.com/user-attachments/assets/a7fd0b2a-557b-474d-aa12-3c4eff12cdcc" />
+<img width="1097" height="876" alt="image" src="https://github.com/user-attachments/assets/99b2a9c4-0e64-425b-9b59-235781ae48dd" />
+
+
+<img width="718" height="567" alt="image" src="https://github.com/user-attachments/assets/742a0a96-4151-43eb-9d7c-5bcd1f9b4c6b" /> <img width="721" height="667" alt="image" src="https://github.com/user-attachments/assets/7011a1fc-70e0-4ac6-a47b-0bfa2f1ca43d" />
+<img width="685" height="619" alt="image" src="https://github.com/user-attachments/assets/83726864-3ae9-4054-b10b-99fa93381a2d" />
+<img width="671" height="746" alt="image" src="https://github.com/user-attachments/assets/264f7b3a-fcbb-421e-a0ce-defc235db40a" />
+
+
+
+
+
+
+
