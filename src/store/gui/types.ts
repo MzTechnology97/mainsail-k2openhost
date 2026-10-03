@@ -18,6 +18,10 @@ export interface GuiState {
         calcEtaTime: string[] // file, filament, slicer are possible values
     }
     console?: GuiConsoleState
+    cfs: {
+        /** Filament brands added in the CFS library, kept even without a profile using them. */
+        customBrands: string[]
+    }
     control: {
         style: 'bars' | 'circle' | 'cross'
         hideDuringPrint: boolean

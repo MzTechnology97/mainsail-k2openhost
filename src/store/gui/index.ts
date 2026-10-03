@@ -155,6 +155,9 @@ export const getDefaultState = (): GuiState => {
             showGCodePanel: false,
             cncMode: false,
         },
+        cfs: {
+            customBrands: [],
+        },
         navigation: {
             entries: [],
         },

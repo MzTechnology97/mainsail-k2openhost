@@ -30,6 +30,10 @@
                     <v-alert v-if="readOnly" dense text type="warning" class="mb-3">
                         Profiles can be viewed while printing, but not changed.
                     </v-alert>
+                    <v-alert v-if="library && library.error" dense text type="error" class="mb-3">
+                        The library file {{ libraryFile }} is damaged, so changes are not saved: {{ library.error }}.
+                        Fix or replace the file, then reload it.
+                    </v-alert>
 
                     <div class="cfs-lib-toolbar">
                         <v-text-field
@@ -166,10 +170,28 @@
                 <v-card-actions class="cfs-lib-actions">
                     <span class="cfs-lib-hint">
                         <v-icon x-small class="mr-1">{{ mdiInformationOutline }}</v-icon>
-                        System profiles come from the Creality/Generic K2-RFID catalog and are read only. Spool colour
-                        belongs to the slot or tag.
+                        <template v-if="library && library.separate_file">
+                            Custom profiles live in
+                            <code :title="library.path">{{ libraryFile }}</code>
+                            (file manager, backups, companion app).
+                        </template>
+                        <template v-else>
+                            System profiles come from the Creality/Generic K2-RFID catalog and are read only.
+                        </template>
                     </span>
                     <v-spacer />
+                    <v-btn
+                        v-if="library && library.separate_file"
+                        icon
+                        title="Reload the library file"
+                        aria-label="Reload the library file"
+                        @click="reloadLibrary">
+                        <v-icon>{{ mdiRefresh }}</v-icon>
+                    </v-btn>
+                    <v-btn text class="mr-1" @click="openBrands">
+                        <v-icon left>{{ mdiTagMultipleOutline }}</v-icon>
+                        Brands
+                    </v-btn>
                     <v-btn color="primary" :disabled="readOnly" @click="createNew">
                         <v-icon left>{{ mdiPlus }}</v-icon>
                         New filament
@@ -211,11 +233,25 @@
                                     <div class="cfs-editor-grid">
                                         <v-combobox
                                             v-model="form.brand"
-                                            :items="brandFilterOptions"
+                                            :items="brandOptions"
                                             dense
                                             outlined
                                             label="Brand"
-                                            :rules="[rules.maxLength(64)]" />
+                                            hint="Pick a brand or type a new one"
+                                            :rules="[rules.maxLength(64)]"
+                                            @update:search-input="onBrandTyped">
+                                            <template #append-outer>
+                                                <v-btn
+                                                    icon
+                                                    small
+                                                    class="cfs-editor-brands-btn"
+                                                    title="Manage brands"
+                                                    aria-label="Manage brands"
+                                                    @click="openBrands">
+                                                    <v-icon small>{{ mdiTagMultipleOutline }}</v-icon>
+                                                </v-btn>
+                                            </template>
+                                        </v-combobox>
                                         <v-autocomplete
                                             v-model="form.material"
                                             :items="materialOptions"
@@ -237,7 +273,7 @@
                                             outlined
                                             label="ID *"
                                             :disabled="editingExisting"
-                                            hint="5 digits keep it compatible with K2-RFID tags"
+                                            :hint="idHint"
                                             persistent-hint
                                             :rules="[rules.required, rules.maxLength(64), rules.uniqueId]"
                                             @input="form.id = String($event || '').toUpperCase()">
@@ -375,6 +411,110 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+
+        <v-dialog v-model="brandsDialog" max-width="560" scrollable :fullscreen="isMobile">
+            <v-card class="cfs-brands">
+                <v-card-title class="cfs-lib-title">
+                    <v-icon class="mr-2">{{ mdiTagMultipleOutline }}</v-icon>
+                    <div class="cfs-lib-heading">
+                        <div>Brands</div>
+                        <div class="cfs-lib-subtitle">
+                            {{ brandRows.length }} brands · {{ customBrands.length }} added by you
+                        </div>
+                    </div>
+                    <v-spacer />
+                    <v-btn icon aria-label="Close brands" @click="brandsDialog = false">
+                        <v-icon>{{ mdiClose }}</v-icon>
+                    </v-btn>
+                </v-card-title>
+                <v-divider />
+                <v-card-text class="cfs-brands-body">
+                    <form class="cfs-brands-add" @submit.prevent="addBrand">
+                        <v-text-field
+                            v-model="newBrand"
+                            dense
+                            outlined
+                            hide-details="auto"
+                            label="New brand"
+                            :error-messages="newBrandError" />
+                        <v-btn color="primary" type="submit" :disabled="!newBrandValid">
+                            <v-icon left>{{ mdiPlus }}</v-icon>
+                            Add
+                        </v-btn>
+                    </form>
+
+                    <div class="cfs-brands-list">
+                        <div
+                            v-for="item in brandRows"
+                            :key="item.key"
+                            class="cfs-brands-row"
+                            :class="{ 'cfs-brands-row--custom': item.saved }">
+                            <v-icon small class="cfs-brands-icon">
+                                {{ item.systemCount ? mdiLockOutline : mdiTagOutline }}
+                            </v-icon>
+                            <div class="cfs-brands-text">
+                                <div class="cfs-brands-name">{{ item.name }}</div>
+                                <div class="cfs-brands-meta">{{ item.meta }}</div>
+                            </div>
+                            <v-btn v-if="item.customCount" x-small text @click="showBrandProfiles(item.name)">
+                                Show profiles
+                            </v-btn>
+                            <v-btn
+                                icon
+                                small
+                                :disabled="!item.deletable"
+                                :aria-label="`Delete brand ${item.name}`"
+                                @click="deleteBrand(item.name)">
+                                <v-icon small :color="item.deletable ? 'error' : undefined">{{ mdiDelete }}</v-icon>
+                            </v-btn>
+                        </div>
+                    </div>
+                </v-card-text>
+                <v-divider />
+                <v-card-actions>
+                    <span class="cfs-brands-note">
+                        <v-icon x-small class="mr-1">{{ mdiInformationOutline }}</v-icon>
+                        Added brands are stored in Mainsail's settings on the printer. A brand used by a profile can be
+                        deleted once no profile uses it; system catalog brands are locked.
+                    </span>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="confirmBrandDelete" max-width="480">
+            <v-card v-if="brandDeleting" class="cfs-brands-confirm">
+                <v-card-title>Delete brand {{ brandDeleting.name }}?</v-card-title>
+                <v-card-text>
+                    <p>
+                        {{ brandDeletingProfiles.length }} custom
+                        {{ brandDeletingProfiles.length === 1 ? 'profile uses' : 'profiles use' }} this brand. Choose
+                        the brand they move to: temperatures, colour and every other value stay as they are.
+                    </p>
+                    <div class="cfs-brands-profiles">
+                        <span v-for="filament in brandDeletingProfiles" :key="filament.id" class="cfs-brands-profile">
+                            <span class="cfs-lib-dot" :style="{ backgroundColor: color(filament.color) }" />
+                            {{ filament.name || filament.id }}
+                        </span>
+                    </div>
+                    <v-combobox
+                        v-model="brandMoveTo"
+                        :items="brandMoveOptions"
+                        dense
+                        outlined
+                        clearable
+                        persistent-hint
+                        label="Move the profiles to"
+                        hint="Leave empty for no brand, or type a new name to rename the brand"
+                        class="mt-4"
+                        @update:search-input="onBrandMoveTyped" />
+                </v-card-text>
+                <v-card-actions>
+                    <v-spacer />
+                    <v-btn text @click="confirmBrandDelete = false">{{ $t('Buttons.Cancel') }}</v-btn>
+                    <v-btn color="error" :disabled="readOnly" @click="removeBrand">Delete brand</v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </v-dialog>
 </template>
 
@@ -383,8 +523,8 @@ import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import CfsFilamentCard, { CfsFilamentCardBadge } from '@/components/cfs/CfsFilamentCard.vue'
-import { CfsBoxState, CfsFilament } from '@/types/cfs'
-import { cfsBoxNumber, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
+import { CfsBoxState, CfsFilament, CfsFilamentLibrary } from '@/types/cfs'
+import { cfsBoxNumber, cfsFilamentSource, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 import {
     mdiArrowLeft,
     mdiAutorenew,
@@ -396,9 +536,13 @@ import {
     mdiDelete,
     mdiDotsVertical,
     mdiInformationOutline,
+    mdiLockOutline,
     mdiMagnify,
     mdiPencil,
     mdiPlus,
+    mdiRefresh,
+    mdiTagMultipleOutline,
+    mdiTagOutline,
     mdiTrayArrowDown,
 } from '@mdi/js'
 
@@ -414,6 +558,16 @@ interface FilamentForm {
     pressure_advance: number | null
     rfid_code: string
     spoolman_id: number | null
+}
+
+interface BrandRow {
+    key: string
+    name: string
+    systemCount: number
+    customCount: number
+    saved: boolean
+    deletable: boolean
+    meta: string
 }
 
 type Scope = 'all' | 'custom' | 'system' | 'used'
@@ -436,9 +590,13 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     mdiDelete = mdiDelete
     mdiDotsVertical = mdiDotsVertical
     mdiInformationOutline = mdiInformationOutline
+    mdiLockOutline = mdiLockOutline
     mdiMagnify = mdiMagnify
     mdiPencil = mdiPencil
     mdiPlus = mdiPlus
+    mdiRefresh = mdiRefresh
+    mdiTagMultipleOutline = mdiTagMultipleOutline
+    mdiTagOutline = mdiTagOutline
     mdiTrayArrowDown = mdiTrayArrowDown
 
     editing = false
@@ -452,6 +610,11 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     form: FilamentForm = this.blank()
     confirmDelete = false
     deleting: CfsFilament | null = null
+    brandsDialog = false
+    newBrand = ''
+    confirmBrandDelete = false
+    brandDeleting: BrandRow | null = null
+    brandMoveTo = ''
 
     get isMobile(): boolean {
         return this.$vuetify.breakpoint.xsOnly
@@ -505,6 +668,64 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         )
     }
 
+    /** Brands added by the user, kept in Mainsail's settings (Moonraker DB, namespace mainsail). */
+    get customBrands(): string[] {
+        const value = this.$store.state.gui.cfs?.customBrands
+        return Array.isArray(value) ? value.filter((item: unknown) => typeof item === 'string' && item.trim()) : []
+    }
+
+    /** Every brand known to the editor: profile brands plus the brands added by the user. */
+    get brandOptions(): string[] {
+        return this.brandRows.map((row) => row.name)
+    }
+
+    get brandRows(): BrandRow[] {
+        const rows = new Map<string, BrandRow>()
+        const row = (name: string): BrandRow => {
+            const key = name.toLocaleLowerCase()
+            let item = rows.get(key)
+            if (!item) {
+                item = { key, name, systemCount: 0, customCount: 0, saved: false, deletable: false, meta: '' }
+                rows.set(key, item)
+            }
+            return item
+        }
+        for (const filament of this.filaments) {
+            const name = (filament.brand ?? '').trim()
+            if (!name) continue
+            const item = row(name)
+            if (filament.system) item.systemCount++
+            else item.customCount++
+        }
+        for (const name of this.customBrands) row(name.trim()).saved = true
+        for (const item of rows.values()) {
+            // System catalog brands are read only; brands of custom profiles move those profiles first.
+            item.deletable = !item.systemCount && (!item.customCount || !this.readOnly)
+            const parts: string[] = []
+            if (item.systemCount) parts.push(`System catalog · ${item.systemCount} profiles · locked`)
+            if (item.customCount) {
+                parts.push(`Used by ${item.customCount} custom profile${item.customCount === 1 ? '' : 's'}`)
+            }
+            if (item.saved)
+                parts.push(item.systemCount || item.customCount ? 'Added by you' : 'Added by you · not used yet')
+            item.meta = parts.join(' · ')
+        }
+        return Array.from(rows.values()).sort((a, b) => a.name.localeCompare(b.name))
+    }
+
+    get newBrandError(): string {
+        const name = this.newBrand.trim()
+        if (!name) return ''
+        if (name.length > 64) return 'At most 64 characters'
+        if (this.brandRows.some((row) => row.key === name.toLocaleLowerCase()))
+            return 'This brand is already in the list'
+        return ''
+    }
+
+    get newBrandValid(): boolean {
+        return this.newBrand.trim() !== '' && this.newBrandError === ''
+    }
+
     get materialFilterOptions(): string[] {
         const values = this.filaments
             .filter((item) => !this.brandFilter || item.brand === this.brandFilter)
@@ -545,7 +766,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         return this.filaments.map((item) => ({
             value: item.id,
             name: item.name || item.id,
-            detail: `${item.brand || 'Generic'} · ${item.material} · ${item.system ? 'System' : 'Custom'} · ${item.id}`,
+            detail: `${item.brand || 'Generic'} · ${item.material} · ${cfsFilamentSource(item).text} · ${item.id}`,
             text: `${item.name || item.id} · ${item.brand || 'Generic'} · ${item.material} · ${item.id}`,
             color: this.color(item.color),
         }))
@@ -590,6 +811,13 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         for (const material of Object.keys(this.box.materials ?? {})) if (material) values.add(material)
         if (this.form.material) values.add(this.form.material)
         return Array.from(values).sort((a, b) => a.localeCompare(b))
+    }
+
+    get idHint(): string {
+        const id = (this.form.id ?? '').trim().toUpperCase()
+        if (/^\d{5}$/.test(id))
+            return `K2-RFID material ID: tags written with ${id} (tag code 1${id}) load this profile`
+        return 'Use 5 digits to write K2-RFID tags for this profile'
     }
 
     get editorTitle(): string {
@@ -683,17 +911,133 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     }
 
     cardBadges(filament: CfsFilament): CfsFilamentCardBadge[] {
-        const badges: CfsFilamentCardBadge[] = [filament.system ? { text: 'System' } : { text: 'Custom', kind: 'info' }]
+        const badges: CfsFilamentCardBadge[] = [this.sourceBadge(filament)]
         const used = this.usage(filament.id)
         if (used.length) badges.push({ text: `In use · ${used.join(', ')}`, kind: 'success' })
         if (filament.rfid_code) badges.push({ text: `RFID ${filament.rfid_code}`, title: 'RFID material code' })
         return badges
     }
 
+    sourceBadge(filament: CfsFilament): CfsFilamentCardBadge {
+        const source = cfsFilamentSource(filament)
+        return filament.system ? source : { ...source, kind: 'info' }
+    }
+
+    get library(): CfsFilamentLibrary | null {
+        return this.box.filament_library ?? null
+    }
+
+    /** Library file shown relative to printer_data, as in Mainsail's file manager. */
+    get libraryFile(): string {
+        const path = this.library?.path ?? ''
+        const index = path.indexOf('/printer_data/')
+        return index >= 0 ? path.substring(index + '/printer_data/'.length) : path
+    }
+
+    reloadLibrary(): void {
+        this.send('_BOX_FILAMENT_RELOAD')
+    }
+
     get previewBadges(): CfsFilamentCardBadge[] {
         const badges: CfsFilamentCardBadge[] = [{ text: 'Custom', kind: 'info' }]
         if (this.form.rfid_code) badges.push({ text: `RFID ${this.form.rfid_code}` })
         return badges
+    }
+
+    openBrands(): void {
+        this.newBrand = ''
+        this.brandsDialog = true
+    }
+
+    saveCustomBrands(brands: string[]): void {
+        const unique = new Map<string, string>()
+        for (const brand of brands) {
+            const name = brand.trim()
+            if (name && !unique.has(name.toLocaleLowerCase())) unique.set(name.toLocaleLowerCase(), name)
+        }
+        const value = Array.from(unique.values()).sort((a, b) => a.localeCompare(b))
+        this.$store.dispatch('gui/saveSetting', { name: 'cfs.customBrands', value })
+    }
+
+    addBrand(): void {
+        if (!this.newBrandValid) return
+        const name = this.newBrand.trim()
+        this.saveCustomBrands([...this.customBrands, name])
+        if (this.editing && !(this.form.brand ?? '').trim()) this.form.brand = name
+        this.newBrand = ''
+    }
+
+    deleteBrand(name: string): void {
+        const row = this.brandRows.find((item) => item.key === name.toLocaleLowerCase())
+        if (!row?.deletable) return
+        if (row.customCount) {
+            this.brandDeleting = row
+            this.brandMoveTo = ''
+            this.confirmBrandDelete = true
+            return
+        }
+        this.saveCustomBrands(this.customBrands.filter((item) => item.trim().toLocaleLowerCase() !== row.key))
+    }
+
+    get brandDeletingProfiles(): CfsFilament[] {
+        const key = this.brandDeleting?.key
+        if (!key) return []
+        return this.filaments.filter((item) => !item.system && (item.brand ?? '').trim().toLocaleLowerCase() === key)
+    }
+
+    get brandMoveOptions(): string[] {
+        return this.brandOptions.filter((name) => name.toLocaleLowerCase() !== this.brandDeleting?.key)
+    }
+
+    /** Moves the custom profiles of the deleted brand to another brand (or none), then drops the brand. */
+    removeBrand(): void {
+        const row = this.brandDeleting
+        this.confirmBrandDelete = false
+        if (!row || row.systemCount || this.readOnly) return
+        const typed = (this.brandMoveTo ?? '').trim()
+        if (typed.toLocaleLowerCase() === row.key) return
+        // Reuse the spelling of an existing brand ("sunlu" → "SUNLU").
+        const target = this.brandRows.find((item) => item.key === typed.toLocaleLowerCase())?.name ?? typed
+        // _BOX_FILAMENT_SET keeps every omitted field except the target temperature, so send it back unchanged.
+        const scripts = this.brandDeletingProfiles.map((filament) => {
+            const parts = [
+                `_BOX_FILAMENT_SET ID=${this.q(filament.id)}`,
+                `MATERIAL=${this.q(filament.material)}`,
+                `BRAND=${this.q(target)}`,
+            ]
+            if (this.validNumber(filament.target_temp))
+                parts.push(`TARGET_TEMP=${Math.round(Number(filament.target_temp))}`)
+            return parts.join(' ')
+        })
+        if (scripts.length) this.send(scripts.join('\n'))
+        const kept = this.customBrands.filter((item) => item.trim().toLocaleLowerCase() !== row.key)
+        if (target && !this.brandRows.some((item) => item.key === target.toLocaleLowerCase() && item.systemCount)) {
+            kept.push(target)
+        }
+        this.saveCustomBrands(kept)
+        if ((this.form.brand ?? '').trim().toLocaleLowerCase() === row.key) this.form.brand = target
+        if ((this.brandFilter ?? '').toLocaleLowerCase() === row.key) this.brandFilter = null
+        this.brandDeleting = null
+    }
+
+    onBrandMoveTyped(value: string | null): void {
+        if (typeof value === 'string') this.brandMoveTo = value
+    }
+
+    /** Library filtered on the custom profiles of a brand, to change or delete them. */
+    showBrandProfiles(name: string): void {
+        this.brandsDialog = false
+        this.editing = false
+        this.search = ''
+        this.materialFilter = null
+        this.brandFilter =
+            this.brandFilterOptions.find((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase()) ?? name
+        this.scope = 'custom'
+    }
+
+    /** Typed text counts as the brand right away, without Enter or leaving the field. */
+    onBrandTyped(value: string | null): void {
+        if (typeof value === 'string') this.form.brand = value
     }
 
     usage(id: string): string[] {
@@ -809,11 +1153,19 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
 
     save(): void {
         if (this.readOnly || !this.valid) return
+        const brand = (this.form.brand ?? '').trim()
+        // A new brand typed here joins the brand list, so it stays available after its profiles are gone.
+        if (
+            brand &&
+            !this.brandRows.some((row) => row.key === brand.toLocaleLowerCase() && (row.saved || row.systemCount))
+        ) {
+            this.saveCustomBrands([...this.customBrands, brand])
+        }
         const parts = [
             `_BOX_FILAMENT_SET ID=${this.q(this.form.id.trim().toUpperCase())}`,
             `MATERIAL=${this.q(this.form.material)}`,
             `COLOR=${this.q(this.form.color)}`,
-            `BRAND=${this.q(this.form.brand ?? '')}`,
+            `BRAND=${this.q(brand)}`,
             `NAME=${this.q(this.form.name)}`,
             `TARGET_TEMP=${Math.round(this.form.target_temp)}`,
             `RFID_CODE=${this.q(this.form.rfid_code)}`,
@@ -1016,6 +1368,89 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
 
 .cfs-editor-preview-note {
     margin-top: 10px;
+    font-size: 0.74rem;
+    opacity: 0.7;
+}
+
+.cfs-editor-brands-btn {
+    margin-top: -4px;
+}
+
+/* Brands ------------------------------------------------------------------- */
+.cfs-brands-body {
+    padding-top: 16px !important;
+}
+
+.cfs-brands-add {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.cfs-brands-add .v-btn {
+    height: 40px !important;
+}
+
+.cfs-brands-list {
+    display: grid;
+    gap: 6px;
+}
+
+.cfs-brands-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 6px 6px 6px 12px;
+    border: 1px solid rgba(128, 128, 128, 0.22);
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.04);
+}
+
+.cfs-brands-row--custom {
+    border-color: var(--v-info-base);
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.cfs-brands-icon {
+    opacity: 0.7;
+}
+
+.cfs-brands-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.cfs-brands-name {
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfs-brands-meta {
+    font-size: 0.74rem;
+    opacity: 0.75;
+}
+
+.cfs-brands-profiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.cfs-brands-profile {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px 2px 6px;
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 12px;
+    font-size: 0.78rem;
+}
+
+.cfs-brands-note {
     font-size: 0.74rem;
     opacity: 0.7;
 }

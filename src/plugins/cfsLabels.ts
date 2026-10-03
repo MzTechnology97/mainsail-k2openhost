@@ -26,3 +26,16 @@ export function cfsSlotShortLabel(slot: Pick<CfsSlot, 'index' | 'external'>, mul
     if (!multiBox) return `Slot ${cfsLocalSlot(slot.index)}`
     return `B${cfsBoxNumber(slot.index)}·S${cfsLocalSlot(slot.index)}`
 }
+
+/** Where a library profile comes from, as shown on badges and in profile lists. */
+export function cfsFilamentSource(filament: { system?: boolean; source?: string }): {
+    text: string
+    title: string
+} {
+    if (filament.system) return { text: 'System', title: 'Creality/Generic K2-RFID catalog, read only' }
+    if (filament.source === 'import') return { text: 'Imported', title: 'From the K2-RFID material database import' }
+    if (filament.source === 'rfid') {
+        return { text: 'From RFID tag', title: 'Registered automatically when its tag was read' }
+    }
+    return { text: 'Custom', title: 'Created in the library' }
+}

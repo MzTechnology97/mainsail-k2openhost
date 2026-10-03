@@ -177,7 +177,7 @@ import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import CfsFilamentCard, { CfsFilamentCardBadge, CfsFilamentCardData } from '@/components/cfs/CfsFilamentCard.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
-import { cfsSlotLabel } from '@/plugins/cfsLabels'
+import { cfsFilamentSource, cfsSlotLabel } from '@/plugins/cfsLabels'
 import {
     mdiClose,
     mdiContentSave,
@@ -344,7 +344,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         return this.matchingProfiles.map((item) => ({
             value: item.id,
             name: item.name || item.id,
-            detail: `${item.brand || 'Generic'} · ${item.material} · ${item.system ? 'System' : 'Custom'} · ${item.id}`,
+            detail: `${item.brand || 'Generic'} · ${item.material} · ${cfsFilamentSource(item).text} · ${item.id}`,
             text: `${item.name || item.id} · ${item.brand || 'Generic'} · ${item.material} · ${item.id}`,
             color: this.validColor(item.color),
         }))
@@ -364,7 +364,8 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     get previewBadges(): CfsFilamentCardBadge[] {
         const profile = this.selectedProfile
         if (!profile) return []
-        return [profile.system ? { text: 'System' } : { text: 'Custom', kind: 'info' }, { text: 'Library' }]
+        const source = cfsFilamentSource(profile)
+        return [profile.system ? source : { ...source, kind: 'info' }, { text: 'Library' }]
     }
 
     get currentText(): string {
