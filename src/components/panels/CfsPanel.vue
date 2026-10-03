@@ -99,6 +99,11 @@
                 </v-chip>
             </div>
 
+            <v-alert v-if="mappingWarnings.length" dense text type="warning" class="mt-3 mb-0 cfs-mapping-warnings">
+                <div class="font-weight-bold">Print mapping warnings</div>
+                <div v-for="(text, index) in mappingWarnings" :key="index">{{ text }}</div>
+            </v-alert>
+
             <v-alert v-if="box.recovery.blocked" dense text type="warning" class="mt-3 mb-0">
                 <div>{{ recoveryText }}</div>
                 <v-btn
@@ -463,7 +468,7 @@ import Panel from '@/components/ui/Panel.vue'
 import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDialog.vue'
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
-import { cfsBoxNumber, cfsLocalSlot, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
+import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 
 type CfsSettingKey =
     | 'runout_swap_enabled'
@@ -963,6 +968,15 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     get clogHint(): string {
         const clog = this.box.load_path.clog_detection
         return `Clog/tangle detection · ${clog.event_count} event(s) since start`
+    }
+
+    /** Warnings of the map used by the current print; they never block it. */
+    get mappingWarnings(): string[] {
+        return (this.box.mapping_warnings ?? []).map((warning) => {
+            const slot = this.box.slots.find((item) => item.index === warning.slot)
+            const label = slot ? cfsSlotLabel(slot) : `slot ${warning.slot + 1}`
+            return cfsMappingWarningText(warning, label)
+        })
     }
 
     get recoveryText(): string {

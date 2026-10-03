@@ -89,6 +89,10 @@
                             <span class="cfs-map-quality" :class="`cfs-map-quality--${quality(tool).kind}`">
                                 {{ quality(tool).text }}
                             </span>
+                            <span v-if="filamentWarning(tool)" class="cfs-map-warning">
+                                <v-icon x-small color="warning" class="mr-1">{{ mdiAlertOutline }}</v-icon>
+                                {{ filamentWarning(tool) }}
+                            </span>
                         </div>
                     </template>
                 </div>
@@ -107,6 +111,10 @@
             <v-alert v-else-if="!mappingValid" dense text type="warning" class="mx-6 mt-3 mb-0">
                 Map every tool to a CFS slot with filament or to the external spool.
             </v-alert>
+            <v-alert v-else-if="hasWarnings" dense text type="warning" class="mx-6 mt-3 mb-0">
+                Warnings do not block the print. A spool that runs out pauses the print for runout, unless the runout
+                swap finds an identical spool.
+            </v-alert>
         </template>
     </v-card-text>
 </template>
@@ -116,8 +124,8 @@ import { Component, Mixins, Prop, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import { FileStateGcodefile } from '@/store/files/types'
 import { CfsBoxState, CfsPrintInfo, CfsPrintTool, CfsSlot } from '@/types/cfs'
-import { cfsSlotLabel } from '@/plugins/cfsLabels'
-import { mdiArrowRightThin, mdiAutoFix } from '@mdi/js'
+import { cfsIsMaterialVariant, cfsNeededMetres, cfsSlotLabel } from '@/plugins/cfsLabels'
+import { mdiAlertOutline, mdiArrowRightThin, mdiAutoFix } from '@mdi/js'
 
 interface SlotItem {
     text: string
@@ -133,6 +141,7 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     @Prop({ required: true, default: '' }) declare readonly currentPath: string
     @Prop({ required: true, default: false }) declare readonly active: boolean
 
+    mdiAlertOutline = mdiAlertOutline
     mdiArrowRightThin = mdiArrowRightThin
     mdiAutoFix = mdiAutoFix
 
@@ -248,6 +257,9 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         if (slot.external && !slot.material) return { kind: 'material', text: 'External spool' }
         const material = this.normalize(tool.material)
         if (material && this.normalize(slot.material) !== material) {
+            if (cfsIsMaterialVariant(tool.material, slot.material)) {
+                return { kind: 'other', text: `Material variant: ${tool.material} on ${slot.material}` }
+            }
             return { kind: 'other', text: `Different material (${slot.material || 'not set'})` }
         }
         if (this.normalize(tool.color) && this.normalize(slot.color) === this.normalize(tool.color)) {
@@ -258,6 +270,39 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
 
     normalize(value: string): string {
         return (value ?? '').trim().toUpperCase()
+    }
+
+    /** Known filament for a slot, plus identical spools when runout swap is on; null = unknown. */
+    availableMetres(slot: CfsSlot): number | null {
+        const own = slot.rfid_remaining_m
+        if (typeof own !== 'number' || !Number.isFinite(own)) return null
+        if (!this.box?.runout_swap_enabled || slot.external) return own
+        let total = own
+        for (const other of this.box.slots) {
+            if (other.index === slot.index || other.external || !other.present) continue
+            if (this.normalize(other.material) !== this.normalize(slot.material)) continue
+            if (this.normalize(other.color) !== this.normalize(slot.color)) continue
+            if (typeof other.rfid_remaining_m !== 'number' || !Number.isFinite(other.rfid_remaining_m)) return null
+            total += other.rfid_remaining_m
+        }
+        return total
+    }
+
+    /** Warning when the chosen spool may run out before this tool is done. */
+    filamentWarning(tool: CfsPrintTool): string {
+        if (!this.mappingEnabled) return ''
+        const needed = cfsNeededMetres(tool.length_mm)
+        const slot = this.box?.slots?.find((item) => item.index === this.mapping[tool.tool])
+        if (needed === null || !slot) return ''
+        const available = this.availableMetres(slot)
+        if (available === null || available >= needed) return ''
+        return `May run out: about ${available.toFixed(1)} m left, about ${needed.toFixed(1)} m needed`
+    }
+
+    get hasWarnings(): boolean {
+        return this.tools.some(
+            (tool) => !!this.filamentWarning(tool) || this.quality(tool).text.startsWith('Material variant')
+        )
     }
 
     autoMap(): void {
@@ -584,6 +629,14 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
 
 .cfs-map-quality--none {
     color: var(--v-error-base);
+}
+
+.cfs-map-warning {
+    display: flex;
+    align-items: center;
+    color: var(--v-warning-base);
+    font-size: 0.72rem;
+    font-weight: 600;
 }
 
 .cfs-map-selection {
