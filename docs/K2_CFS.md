@@ -36,7 +36,7 @@ The **Filaments · CFS** panel uses a two-column desktop grid (one column on nar
 - full, vivid spool color;
 - RFID/manual/library provenance;
 - reported and estimated remaining filament;
-- load/reread/edit controls;
+- compact icon-only load/edit controls plus RFID reread controls;
 - external-spool state.
 
 RFID spool graphics use the remaining percentage as the filled sector. Color and remaining amount are independent: a brown/red/black/etc. spool remains visually saturated while its fill sector communicates the remaining quantity.
