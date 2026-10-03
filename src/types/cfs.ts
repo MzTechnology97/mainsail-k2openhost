@@ -39,6 +39,18 @@ export interface CfsFilament {
     aliases?: string[]
     spoolman_id: number | null
     system: boolean
+    /** Origin: shipped catalog, created by the user, K2-RFID import or auto-registered from a tag. */
+    source?: 'system' | 'user' | 'import' | 'rfid'
+}
+
+export interface CfsFilamentLibrary {
+    /** Library file holding the custom profiles (the state file on older firmware). */
+    path: string
+    separate_file: boolean
+    custom_count: number
+    system_count: number
+    /** Set when the file is damaged: library writes are refused until it is fixed. */
+    error: string
 }
 
 export interface CfsRunoutChainItem {
@@ -183,6 +195,7 @@ export interface CfsBoxState {
     operation?: CfsOperation
     materials: Record<string, CfsMaterial>
     filaments: Record<string, CfsFilament>
+    filament_library?: CfsFilamentLibrary
     runout: CfsRunout | null
     runout_groups: CfsRunoutGroup[]
     runout_swap_enabled: boolean
