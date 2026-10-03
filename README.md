@@ -54,7 +54,7 @@ This fork adds a native **Creality CFS** (Creality Filament System) panel and pr
 | **Filament path**    | CFS → encoder → buffer → printhead joined by a PTFE tube with the filament inside in the real spool colour, filled as far as the sensors report and animated live during loads/unloads; CFS icon in the real bay colours, nozzle with hotend temperature                                 |
 | **Slot tiles**       | Colour stripe, RFID remaining gauge, material, name and temperature, source badge (RFID / Library / Spoolman / Manual), active state; load, edit, RFID and reread actions                                                                                                                |
 | **Runout swap**      | Groups of identical spools with order, strategy and remaining filament; the group in use is marked active                                                                                                                                                                                |
-| **Slot editor**      | Brand → Type → Profile → Colour for non-RFID spools, with a preset palette and custom colours                                                                                                                                                                                            |
+| **Slot editor**      | Brand → Material → Profile → Colour for non-RFID spools and the external spool, with live preview, preset palette and custom colours                                                                                                                                                     |
 | **RFID**             | Read-only tag data, per-slot reread, and a one-click flow to create a profile for an unknown tag                                                                                                                                                                                         |
 | **Filament library** | Card view of the read-only Creality/Generic K2-RFID catalog and your custom profiles (saved in `config/cfs_filaments.json`), with origin and In-use badges, quick filters, Use in slot, duplicate/edit/delete, brand management and a sectioned editor with live preview and K2-RFID IDs |
 | **Print mapping**    | The Print dialog maps every slicer tool to a CFS slot (auto-map + manual choice) and starts with `BOX_PRINT_START`                                                                                                                                                                       |
@@ -79,11 +79,20 @@ This fork adds a native **Creality CFS** (Creality Filament System) panel and pr
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | <img src="docs/images/k2-openhost/cfs-panel-phone.png" alt="Phone layout" width="260"> | <img src="docs/images/k2-openhost/cfs-library-list.png" alt="Filament library" width="400"> |
 
-Views with several CFS units use simulated status data; the development printer has one unit.
+| Parts of a slot tile                                                                               | Profile card in the library                                                                                |
+| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-tile-anatomy.png" alt="Parts of the slot tiles" width="400"> | <img src="docs/images/k2-openhost/cfs-library-card-anatomy.png" alt="Parts of a profile card" width="300"> |
+
+| Adding a custom filament                                                                                | Unknown RFID tag → new profile                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-example-4-filled.png" alt="Adding a custom filament" width="400"> | <img src="docs/images/k2-openhost/cfs-unknown-rfid-editor.png" alt="Profile created from an unknown tag" width="400"> |
+
+Views with several CFS units use simulated status data; the development printer has one unit. The step-by-step guide to adding a custom filament is in [`docs/K2_CFS.md`](docs/K2_CFS.md#10-example-adding-a-custom-filament).
 
 ### Documentation
 
-- [`docs/K2_CFS.md`](docs/K2_CFS.md): every K2-OpenHost feature, section by section, with the backend contract, commands, layout rules and validation status.
+- [`docs/K2_CFS.md`](docs/K2_CFS.md): every K2-OpenHost feature, section by section, with step-by-step guides (slot editor, filament library, adding a custom filament, unknown RFID tags), the backend contract, commands, layout rules and validation status.
+- [K2-OpenHost Installer Helper](https://github.com/MzTechnology97/k2-openhost-installer-helper): installs this fork, Kalico and Moonraker on an external host.
 - [`K2-OPENHOST.md`](K2-OPENHOST.md): how this fork fits the K2-OpenHost architecture, credits and update/deployment notes.
 
 Upstream Mainsail documentation: [docs.mainsail.xyz](https://docs.mainsail.xyz).
