@@ -143,6 +143,7 @@
         "ScrewOutput": "{current} of {max}"
     },
     "Buttons": {
+        "Back": "Back",
         "Cancel": "Cancel",
         "Close": "Close",
         "Confirm": "Confirm",
@@ -681,6 +682,9 @@
             "WeightRemaining": "{weight}g remaining",
             "WeightSubtitle": "The weight of the filament in grams (without spool).",
             "WeightUsed": "{weight}g used"
+        },
+        "CfsPanel": {
+            "Headline": "CFS"
         },
         "ExtruderControlPanel": {
             "Allowed": "Allowed",

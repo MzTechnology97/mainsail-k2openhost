@@ -428,7 +428,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     get title(): string {
-        return `${this.$t('Files.Filaments')} · CFS`
+        return this.$t('Panels.CfsPanel.Headline') as string
     }
 
     get cfsSlots(): CfsSlot[] {
