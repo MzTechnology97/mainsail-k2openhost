@@ -1,7 +1,7 @@
 name: K2-OpenHost build
 
 # Publishes a prebuilt mainsail.zip for every push to develop, so the
-# k2-openhost-helper installer and Moonraker's update manager
+# k2-openhost-installer-helper installer and Moonraker's update manager
 # ([update_manager mainsail] type: web, channel: beta) can install the fork
 # without building it on the printer host.
 
