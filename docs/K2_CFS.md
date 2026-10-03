@@ -209,26 +209,46 @@ RFID-managed slots show a read-only sheet with:
 
 ## 9. Filament library
 
-<img src="images/k2-openhost/cfs-filament-library.png" alt="Filament library" width="720">
+<img src="images/k2-openhost/cfs-library-list.png" alt="Filament library" width="760">
 
-The library holds two kinds of profile:
+The library holds the read-only **system catalog** shipped with K2-OpenHost (the Creality and Generic profiles of the public K2-RFID database) and your **custom** profiles. Custom profiles come first, then the catalog by brand and name.
 
-- the read-only **system catalog** shipped with K2-OpenHost: the Creality and Generic profiles from the public K2-RFID database;
-- your **custom** profiles.
+**Browsing**
 
-The development printer lists 81 profiles. You can:
+- Every profile is a card with:
+  - a spool swatch in its colour, its name, material and brand;
+  - a **temperature bar**: the nozzle range on a 150–350 °C scale, with the target/flush temperature as a marker;
+  - badges: `System` or `Custom`, the RFID material code, and **In use** with the slots currently using the profile;
+  - its ID, pressure advance and Spoolman ID.
+- Quick filters **All**, **Custom**, **System** and **In use** (with counts), plus text search over name, brand, material, ID and RFID code, and **Brand** / **Material** filters.
+- An empty result offers **Clear filters**.
 
-- search by text and filter by **Brand** and **Material**;
-- create a custom profile, from scratch or from a system preset.
+**Actions on a profile**
 
-A custom profile can carry:
+|                                                                                            | Action                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <img src="images/k2-openhost/cfs-library-card-menu.png" alt="Profile actions" width="360"> | **Use in slot** assigns the profile to any present, non-RFID slot or the external spool (`_BOX_SLOT_ASSIGN`). The ⋮ menu offers **Create custom from this** for system profiles, and **Duplicate**, **Edit** and **Delete** for custom ones. Deleting asks for confirmation and says which slots use the profile; those slots keep their values as manual metadata. |
 
-- material, brand and name;
-- default colour;
-- target, minimum and maximum nozzle temperature;
-- pressure advance;
-- RFID material ID;
-- Spoolman ID.
+**Creating and editing a profile**
+
+<img src="images/k2-openhost/cfs-library-editor.png" alt="Filament editor" width="760">
+
+The editor is split into sections, with a live **preview** of the card:
+
+1. **Start from** (new profiles): search any system or custom profile and copy its values. The ID and RFID code you already set are kept.
+2. **Identity**:
+   - brand (choose an existing one or type a new one) and material (from the known material families);
+   - name, ideally the OrcaSlicer preset name, so automatic slot mapping can match it;
+   - **ID**: a free 5-digit ID (from 90001) is generated, compatible with K2-RFID tags. The editor refuses an ID that belongs to a system profile or to an existing custom profile, which the backend would otherwise silently overwrite.
+3. **Temperatures**: a range slider plus minimum, target/flush and maximum fields. The target must lie inside the range.
+4. **Colour**: the default colour for manual slots, from the palette or a custom colour.
+5. **Advanced**: pressure advance (0–2), RFID material code (`1xxxxx` tag codes are normalised) and Spoolman ID.
+
+**Create filament** stays disabled until every field is valid. A tag with an unknown RFID code opens this editor prefilled with the tag's code and colour.
+
+On phones the library opens full screen:
+
+<img src="images/k2-openhost/cfs-library-phone.png" alt="Filament library on a phone" width="300">
 
 ## 10. Print dialog: tool → slot mapping
 

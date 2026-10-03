@@ -48,18 +48,18 @@ This fork adds a native **Creality CFS** (Creality Filament System) panel and pr
 
 ### What it adds
 
-| Feature              | What you get                                                                                                                                                                                                                                             |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **CFS panel**        | One section per CFS unit with its own temperature/humidity and offline state, plus the external spool. Status chips for box state, loaded slot and clog/tangle detection                                                                                 |
-| **Filament path**    | CFS → encoder → buffer → printhead joined by a PTFE tube with the filament inside in the real spool colour, filled as far as the sensors report and animated live during loads/unloads; CFS icon in the real bay colours, nozzle with hotend temperature |
-| **Slot tiles**       | Colour stripe, RFID remaining gauge, material, name and temperature, source badge (RFID / Library / Spoolman / Manual), active state; load, edit, RFID and reread actions                                                                                |
-| **Runout swap**      | Groups of identical spools with order, strategy and remaining filament; the group in use is marked active                                                                                                                                                |
-| **Slot editor**      | Brand → Type → Profile → Colour for non-RFID spools, with a preset palette and custom colours                                                                                                                                                            |
-| **RFID**             | Read-only tag data, per-slot reread, and a one-click flow to create a profile for an unknown tag                                                                                                                                                         |
-| **Filament library** | Read-only Creality/Generic K2-RFID catalog plus custom profiles, with search and brand/material filters                                                                                                                                                  |
-| **Print mapping**    | The Print dialog maps every slicer tool to a CFS slot (auto-map + manual choice) and starts with `BOX_PRINT_START`                                                                                                                                       |
-| **Any screen**       | Layout follows the panel width (container queries): 4, 2 or 1 tile columns, compact tiles in narrow dashboard columns, larger touch targets                                                                                                              |
-| **Several CFS**      | Up to four units, with unit-aware slot names (`Slot 3` with one CFS, `B2·S4` with several)                                                                                                                                                               |
+| Feature              | What you get                                                                                                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CFS panel**        | One section per CFS unit with its own temperature/humidity and offline state, plus the external spool. Status chips for box state, loaded slot and clog/tangle detection                                                                                        |
+| **Filament path**    | CFS → encoder → buffer → printhead joined by a PTFE tube with the filament inside in the real spool colour, filled as far as the sensors report and animated live during loads/unloads; CFS icon in the real bay colours, nozzle with hotend temperature        |
+| **Slot tiles**       | Colour stripe, RFID remaining gauge, material, name and temperature, source badge (RFID / Library / Spoolman / Manual), active state; load, edit, RFID and reread actions                                                                                       |
+| **Runout swap**      | Groups of identical spools with order, strategy and remaining filament; the group in use is marked active                                                                                                                                                       |
+| **Slot editor**      | Brand → Type → Profile → Colour for non-RFID spools, with a preset palette and custom colours                                                                                                                                                                   |
+| **RFID**             | Read-only tag data, per-slot reread, and a one-click flow to create a profile for an unknown tag                                                                                                                                                                |
+| **Filament library** | Card view of the read-only Creality/Generic K2-RFID catalog and your custom profiles, with temperature bars, In-use badges, quick filters, Use in slot, duplicate/edit/delete, and a sectioned editor with live preview, generated IDs and overwrite protection |
+| **Print mapping**    | The Print dialog maps every slicer tool to a CFS slot (auto-map + manual choice) and starts with `BOX_PRINT_START`                                                                                                                                              |
+| **Any screen**       | Layout follows the panel width (container queries): 4, 2 or 1 tile columns, compact tiles in narrow dashboard columns, larger touch targets                                                                                                                     |
+| **Several CFS**      | Up to four units, with unit-aware slot names (`Slot 3` with one CFS, `B2·S4` with several)                                                                                                                                                                      |
 
 ### Screenshots
 
@@ -75,9 +75,9 @@ This fork adds a native **Creality CFS** (Creality Filament System) panel and pr
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | <img src="docs/images/k2-openhost/cfs-slot-editor.png" alt="Slot editor" width="400"> | <img src="docs/images/k2-openhost/cfs-rfid-info.png" alt="RFID information" width="400"> |
 
-| Phone                                                                                  | Filament library                                                                                |
-| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| <img src="docs/images/k2-openhost/cfs-panel-phone.png" alt="Phone layout" width="260"> | <img src="docs/images/k2-openhost/cfs-filament-library.png" alt="Filament library" width="400"> |
+| Phone                                                                                  | Filament library                                                                            |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| <img src="docs/images/k2-openhost/cfs-panel-phone.png" alt="Phone layout" width="260"> | <img src="docs/images/k2-openhost/cfs-library-list.png" alt="Filament library" width="400"> |
 
 Views with several CFS units use simulated status data; the development printer has one unit.
 
