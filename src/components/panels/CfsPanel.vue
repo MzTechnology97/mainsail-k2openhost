@@ -128,6 +128,7 @@
                                     :style="{ '--cfs-slot-color': step.color, '--cfs-slot-outline': step.outline }" />
                                 <span class="cfs-path-text">{{ step.value }}</span>
                             </div>
+                            <div v-if="step.sub" class="cfs-path-sub">{{ step.sub }}</div>
                         </div>
                         <div
                             v-if="index < pathSteps.length - 1"
@@ -696,6 +697,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         hint: string
         on: boolean
         error: boolean
+        sub?: string
         color?: string
         outline?: string
     }[] {
@@ -713,7 +715,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             {
                 key: 'slot',
                 label: 'Slot',
-                value: slot ? `${this.slotShortLabel(slot)} · ${this.slotPrimary(slot)}` : '--',
+                value: slot ? this.slotShortLabel(slot) : '--',
+                sub: slot ? this.slotPrimary(slot) : undefined,
                 hint: slot ? this.slotLabel(slot) : 'No CFS slot feeds the printhead',
                 on: !!slot,
                 error: false,
@@ -1538,10 +1541,10 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-path-step {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    column-gap: 12px;
     min-width: 0;
     padding: 8px 10px;
     border: 1px solid rgba(128, 128, 128, 0.3);
@@ -1560,6 +1563,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-path-label {
+    grid-row: 1 / span 2;
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -1570,6 +1574,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 .cfs-path-value {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
     min-width: 0;
     font-size: 0.9rem;
@@ -1578,6 +1583,16 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
 .cfs-path-text {
     overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfs-path-sub {
+    grid-column: 2;
+    overflow: hidden;
+    text-align: right;
+    font-size: 0.74rem;
+    opacity: 0.75;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -1626,6 +1641,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     .cfs-path-step {
+        display: flex;
         flex: 1 1 0;
         flex-direction: column;
         align-items: flex-start;
@@ -1635,7 +1651,13 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     .cfs-path-value {
+        justify-content: flex-start;
         max-width: 100%;
+    }
+
+    .cfs-path-sub {
+        max-width: 100%;
+        text-align: left;
     }
 
     .cfs-path-link {
