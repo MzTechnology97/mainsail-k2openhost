@@ -93,6 +93,10 @@
                     <v-icon left small>{{ mdiPrinter3dNozzle }}</v-icon>
                     {{ slotShortLabel(loadedSlot) }}
                 </v-chip>
+                <v-chip small outlined :color="clogColor" :title="clogHint">
+                    <v-icon left small>{{ mdiAlertCircleOutline }}</v-icon>
+                    {{ $t('Panels.MmuPanel.ClogTangleDetection') }}: {{ clogText }}
+                </v-chip>
             </div>
 
             <v-alert v-if="box.recovery.blocked" dense text type="warning" class="mt-3 mb-0">
@@ -107,6 +111,44 @@
                     {{ $t('Panels.MmuPanel.ButtonRecover') }}
                 </v-btn>
             </v-alert>
+
+            <section class="cfs-path" aria-label="Filament path">
+                <div class="cfs-path-steps">
+                    <template v-for="(step, index) in pathSteps">
+                        <div
+                            :key="step.key"
+                            class="cfs-path-step"
+                            :class="{ 'cfs-path-step--on': step.on, 'cfs-path-step--error': step.error }"
+                            :title="step.hint">
+                            <div class="cfs-path-label">{{ step.label }}</div>
+                            <div class="cfs-path-value">
+                                <span
+                                    v-if="step.color"
+                                    class="cfs-path-dot"
+                                    :style="{ '--cfs-slot-color': step.color, '--cfs-slot-outline': step.outline }" />
+                                <span class="cfs-path-text">{{ step.value }}</span>
+                            </div>
+                        </div>
+                        <div
+                            v-if="index < pathSteps.length - 1"
+                            :key="`${step.key}-link`"
+                            class="cfs-path-link"
+                            :class="{ 'cfs-path-link--on': step.on && pathSteps[index + 1].on }">
+                            <v-icon small>{{ mdiArrowRightThin }}</v-icon>
+                        </div>
+                    </template>
+                </div>
+                <div class="cfs-path-actions">
+                    <v-btn
+                        x-small
+                        outlined
+                        :disabled="!canUnload"
+                        :loading="loadings.includes('cfs_unload')"
+                        @click="sendCommand('BOX_UNLOAD', 'cfs_unload')">
+                        {{ $t('Panels.MmuPanel.ButtonUnload') }}
+                    </v-btn>
+                </div>
+            </section>
 
             <div class="cfs-units" :class="{ 'cfs-units--multi': sections.length > 2 }">
                 <section
@@ -323,27 +365,6 @@
                     </div>
                 </div>
             </section>
-
-            <div class="cfs-footer text--secondary">
-                <span>
-                    <v-icon x-small>{{ mdiPrinter3dNozzle }}</v-icon>
-                    {{
-                        box.filament_detected
-                            ? $t('Panels.MiscellaneousPanel.RunoutSensor.Detected')
-                            : $t('Panels.MiscellaneousPanel.RunoutSensor.Empty')
-                    }}
-                </span>
-                <span>
-                    <v-icon x-small>{{ mdiTransitConnectionVariant }}</v-icon>
-                    {{ loadPathText }}
-                </span>
-                <span :class="{ 'error--text': box.load_path.clog_detection.triggered }">
-                    <v-icon x-small :color="box.load_path.clog_detection.triggered ? 'error' : undefined">
-                        {{ mdiAlertCircleOutline }}
-                    </v-icon>
-                    {{ $t('Panels.MmuPanel.ClogTangleDetection') }}: {{ box.load_path.clog_detection.state }}
-                </span>
-            </div>
         </v-card-text>
 
         <cfs-filament-manager-dialog
@@ -380,7 +401,6 @@ import {
     mdiPrinter3dNozzle,
     mdiSwapHorizontal,
     mdiThermometer,
-    mdiTransitConnectionVariant,
     mdiTrayArrowUp,
     mdiWaterPercent,
 } from '@mdi/js'
@@ -483,7 +503,6 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiRefresh = mdiRefresh
     mdiPrinter3dNozzle = mdiPrinter3dNozzle
     mdiThermometer = mdiThermometer
-    mdiTransitConnectionVariant = mdiTransitConnectionVariant
     mdiWaterPercent = mdiWaterPercent
 
     settingItems: { key: CfsSettingKey; command: string; label: string; icon: string }[] = [
@@ -663,10 +682,85 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         )
     }
 
-    get loadPathText(): string {
-        const slot = this.box.load_path.source_slot ?? this.box.load_path.loaded_slot
-        if (slot === null || slot < 0) return this.box.tracking_active ? 'tracking' : 'idle'
-        return this.slotLabelByIndex(slot)
+    /**
+     * CFS -> encoder -> buffer -> printhead, from box.load_path.
+     *
+     * The buffer byte is the state of its two limit switches: Creality's
+     * firmware names an "empty limit" and a "full limit", and an idle,
+     * unloaded K2 reports 2. Read as bit 0 = full, bit 1 = empty.
+     */
+    get pathSteps(): {
+        key: string
+        label: string
+        value: string
+        hint: string
+        on: boolean
+        error: boolean
+        color?: string
+        outline?: string
+    }[] {
+        const path = this.box.load_path
+        const index = path.source_slot ?? (path.loaded_slot >= 0 ? path.loaded_slot : null)
+        const slot = index === null ? null : (this.box.slots.find((item) => item.index === index) ?? null)
+
+        const encoderOn = path.encoder.active && typeof path.encoder.position_mm === 'number'
+        const bufferState = path.buffer.state_code
+        const bufferLabels: Record<number, string> = { 0: 'Partial', 1: 'Full', 2: 'Empty', 3: 'Both limits' }
+        const bufferText = bufferState === null ? '--' : (bufferLabels[bufferState] ?? `State ${bufferState}`)
+        const head = path.printhead_sensor
+
+        return [
+            {
+                key: 'slot',
+                label: 'Slot',
+                value: slot ? `${this.slotShortLabel(slot)} · ${this.slotPrimary(slot)}` : '--',
+                hint: slot ? this.slotLabel(slot) : 'No CFS slot feeds the printhead',
+                on: !!slot,
+                error: false,
+                color: slot ? this.slotColor(slot) : undefined,
+                outline: slot ? this.slotOutline(slot) : undefined,
+            },
+            {
+                key: 'encoder',
+                label: 'Encoder',
+                value: encoderOn ? `${(path.encoder.position_mm as number).toFixed(1)} mm` : '--',
+                hint: 'CFS feed encoder; reports while the Box tracks a print',
+                on: encoderOn,
+                error: false,
+            },
+            {
+                key: 'buffer',
+                label: 'Buffer',
+                value: bufferText,
+                hint: `Buffer limit switches (state ${bufferState ?? '--'}, status ${path.buffer.status_code})`,
+                on: bufferState === 0 || bufferState === 1,
+                error: bufferState === 3 || path.buffer.status_code !== 0,
+            },
+            {
+                key: 'printhead',
+                label: 'Printhead',
+                value: head.error ? 'Error' : head.detected ? 'Triggered' : 'Not triggered',
+                hint: head.error ?? 'Filament sensor at the printhead',
+                on: head.detected,
+                error: !!head.error,
+            },
+        ]
+    }
+
+    get clogText(): string {
+        const state = this.box.load_path.clog_detection.state
+        return state ? state.charAt(0).toUpperCase() + state.slice(1) : '--'
+    }
+
+    get clogColor(): string | undefined {
+        const clog = this.box.load_path.clog_detection
+        if (clog.triggered) return 'error'
+        return clog.state === 'active' || clog.state === 'armed' ? 'success' : undefined
+    }
+
+    get clogHint(): string {
+        const clog = this.box.load_path.clog_detection
+        return `Clog/tangle detection · ${clog.event_count} event(s) since start`
     }
 
     get recoveryText(): string {
@@ -950,8 +1044,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     padding-top: 12px;
 }
 
-.cfs-status-row,
-.cfs-footer {
+.cfs-status-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -1429,11 +1522,130 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     opacity: 0.8;
 }
 
-.cfs-footer {
-    gap: 4px 16px;
+/* Filament path: CFS -> encoder -> buffer -> printhead. */
+.cfs-path {
     margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(128, 128, 128, 0.2);
-    font-size: 0.76rem;
+    padding: 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 12px;
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.cfs-path-steps {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.cfs-path-step {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.cfs-path-step--on {
+    border-color: var(--v-success-base);
+    box-shadow: inset 0 0 0 1px var(--v-success-base);
+}
+
+.cfs-path-step--error {
+    border-color: var(--v-error-base);
+    box-shadow: inset 0 0 0 1px var(--v-error-base);
+}
+
+.cfs-path-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.cfs-path-value {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.cfs-path-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cfs-path-dot {
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--cfs-slot-color);
+    box-shadow:
+        0 0 0 1px rgba(128, 128, 128, 0.6),
+        0 0 0 3px var(--cfs-slot-outline, transparent);
+}
+
+.cfs-path-link {
+    display: flex;
+    justify-content: center;
+    height: 18px;
+    opacity: 0.45;
+}
+
+.cfs-path-link .v-icon {
+    transform: rotate(90deg);
+}
+
+.cfs-path-link--on {
+    opacity: 1;
+}
+
+.cfs-path-link--on .v-icon {
+    color: var(--v-success-base) !important;
+}
+
+.cfs-path-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+/* Wide panel: the four stages in one row, like the stock Creality layout. */
+@container (min-width: 560px) {
+    .cfs-path-steps {
+        flex-direction: row;
+        align-items: stretch;
+    }
+
+    .cfs-path-step {
+        flex: 1 1 0;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 4px;
+        min-height: 58px;
+    }
+
+    .cfs-path-value {
+        max-width: 100%;
+    }
+
+    .cfs-path-link {
+        align-items: center;
+        width: 24px;
+        height: auto;
+    }
+
+    .cfs-path-link .v-icon {
+        transform: none;
+    }
 }
 </style>
