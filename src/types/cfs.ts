@@ -138,6 +138,15 @@ export interface CfsBoxUnit {
     slots: number[]
 }
 
+export interface CfsOperation {
+    active: boolean
+    kind: 'load' | 'unload' | null
+    slot: number | null
+    stage: string | null
+    change_step: string | null
+    change_target: number | null
+}
+
 export interface CfsRecovery {
     blocked: boolean
     automatic: boolean
@@ -171,6 +180,7 @@ export interface CfsBoxState {
     slot_filament_mask: number
     slots: CfsSlot[]
     boxes?: CfsBoxUnit[]
+    operation?: CfsOperation
     materials: Record<string, CfsMaterial>
     filaments: Record<string, CfsFilament>
     runout: CfsRunout | null

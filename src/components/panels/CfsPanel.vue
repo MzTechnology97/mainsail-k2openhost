@@ -114,8 +114,13 @@
 
             <section
                 class="cfs-path"
+                :class="{ 'cfs-path--unload': pathMotion === 'unload' }"
                 aria-label="Filament path"
                 :style="{ '--cfs-path-color': pathColor, '--cfs-path-outline': colorOutline(pathColor) }">
+                <div v-if="operationText" class="cfs-path-operation" role="status">
+                    <v-progress-circular indeterminate size="14" width="2" color="info" />
+                    <span>{{ operationText }}</span>
+                </div>
                 <div class="cfs-path-steps">
                     <template v-for="(step, index) in pathSteps">
                         <div
@@ -123,7 +128,11 @@
                             class="cfs-path-step"
                             :class="[
                                 `cfs-path-step--${step.key}`,
-                                { 'cfs-path-step--on': step.on, 'cfs-path-step--error': step.error },
+                                {
+                                    'cfs-path-step--on': step.on,
+                                    'cfs-path-step--error': step.error,
+                                    'cfs-path-step--busy': step.key === busyStage,
+                                },
                             ]"
                             :title="step.hint">
                             <div class="cfs-path-icon">
@@ -173,12 +182,11 @@
                                 <div v-if="step.sub" class="cfs-path-sub">{{ step.sub }}</div>
                             </div>
                         </div>
-                        <div
-                            v-if="index < pathSteps.length - 1"
-                            :key="`${step.key}-link`"
-                            class="cfs-path-link"
-                            :class="{ 'cfs-path-link--on': step.on && pathSteps[index + 1].on }">
-                            <span class="cfs-path-line" />
+                        <div v-if="index < pathSteps.length - 1" :key="`${step.key}-link`" class="cfs-path-link">
+                            <!-- PTFE tube; the filament inside reaches as far as the sensors report. -->
+                            <span class="cfs-path-tube" :class="`cfs-path-tube--${pathSegments[index]}`">
+                                <span class="cfs-path-filament" />
+                            </span>
                         </div>
                     </template>
                 </div>
@@ -749,14 +757,34 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         outline?: string
     }[] {
         const path = this.box.load_path
-        const index = path.source_slot ?? (path.loaded_slot >= 0 ? path.loaded_slot : null)
+        const operation = this.box.operation
+        const index =
+            path.source_slot ??
+            (path.loaded_slot >= 0 ? path.loaded_slot : null) ??
+            (operation?.active && operation.kind === 'load' ? operation.slot : null)
         const slot = index === null ? null : (this.box.slots.find((item) => item.index === index) ?? null)
 
         const encoderOn = path.encoder.active && typeof path.encoder.position_mm === 'number'
         const bufferState = path.buffer.state_code
         const bufferLabels: Record<number, string> = { 0: 'Partial', 1: 'Full', 2: 'Empty', 3: 'Both limits' }
         const bufferText = bufferState === null ? '--' : (bufferLabels[bufferState] ?? `State ${bufferState}`)
-        const head = path.printhead_sensor
+        // The Klipper sensor object updates instantly; the Box copy only at
+        // its own refresh points.
+        const sensor = this.$store.state.printer['filament_switch_sensor filament_sensor']
+        const head = {
+            detected:
+                typeof sensor?.filament_detected === 'boolean'
+                    ? sensor.filament_detected
+                    : path.printhead_sensor.detected,
+            error: path.printhead_sensor.error,
+        }
+        const extruder = this.$store.state.printer.extruder
+        const hotend =
+            typeof extruder?.temperature === 'number'
+                ? `${extruder.temperature.toFixed(0)}${
+                      extruder.target ? ` / ${Number(extruder.target).toFixed(0)}` : ''
+                  } °C`
+                : undefined
 
         return [
             {
@@ -796,7 +824,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
                 icon: mdiPrinter3dNozzle,
                 iconColor: head.error ? 'error' : head.detected ? this.pathColor : undefined,
                 value: head.error ? 'Error' : head.detected ? 'Triggered' : 'Not triggered',
-                hint: head.error ?? 'Filament sensor at the printhead',
+                sub: hotend,
+                hint: head.error ?? 'Filament sensor at the printhead and hotend temperature',
                 on: head.detected,
                 error: !!head.error,
             },
@@ -805,8 +834,104 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 
     /** Colour of the filament in the path; the line and nozzle take it on. */
     get pathColor(): string {
-        const slot = this.loadedSlot
+        const operation = this.box.operation
+        const slot =
+            this.loadedSlot ??
+            (operation?.active ? (this.box.slots.find((item) => item.index === operation.slot) ?? null) : null)
         return slot && slot.present ? this.slotColor(slot) : '#4caf50'
+    }
+
+    /** Running load/unload, from the backend "operation" status. */
+    get operationText(): string {
+        const operation = this.box.operation
+        if (!operation) return ''
+        const stages: Record<string, string> = {
+            preparing: 'Preparing',
+            feeding_to_buffer: 'Feeding to buffer',
+            feeding_to_printhead: 'Feeding to printhead',
+            seating: 'Seating in the extruder',
+            verifying: 'Verifying',
+            retracting_from_printhead: 'Retracting from printhead',
+            retracting_to_cfs: 'Retracting to CFS',
+        }
+        if (operation.active && operation.kind) {
+            const verb = operation.kind === 'load' ? 'Loading' : 'Unloading'
+            const where = operation.slot === null ? '' : ` ${this.slotShortLabelByIndex(operation.slot)}`
+            const stage = operation.stage ? ` · ${stages[operation.stage] ?? operation.stage}` : ''
+            return `${verb}${where}${stage}`
+        }
+        if (operation.change_step && operation.change_target !== null) {
+            return `Changing to ${this.slotShortLabelByIndex(operation.change_target)} · ${operation.change_step}`
+        }
+        return ''
+    }
+
+    get pathMotion(): 'load' | 'unload' | null {
+        const operation = this.box.operation
+        return operation?.active && operation.kind ? operation.kind : null
+    }
+
+    /** Stage the filament is currently moving into or out of. */
+    get busyStage(): string | null {
+        const stage = this.box.operation?.active ? this.box.operation.stage : null
+        const stages: Record<string, string> = {
+            preparing: 'slot',
+            feeding_to_buffer: 'buffer',
+            feeding_to_printhead: 'printhead',
+            seating: 'printhead',
+            verifying: this.pathMotion === 'unload' ? 'slot' : 'printhead',
+            retracting_from_printhead: 'printhead',
+            retracting_to_cfs: 'buffer',
+        }
+        return stage ? (stages[stage] ?? null) : null
+    }
+
+    /**
+     * Filament inside each PTFE segment (0 = CFS→encoder, 1 = encoder→buffer,
+     * 2 = buffer→printhead), from what the sensors report: the CFS slot that
+     * feeds the path, filament in the buffer, the printhead sensor. While a
+     * load/unload runs, the segment being filled or emptied is animated.
+     */
+    get pathSegments(): ('empty' | 'full' | 'filling' | 'draining')[] {
+        const [slot, encoder, buffer, head] = this.pathSteps
+        let reach = -1
+        if (slot.on) reach = 0
+        if (encoder.on || buffer.on) reach = 2
+        if (head.on) reach = 3
+        const segments: ('empty' | 'full' | 'filling' | 'draining')[] = [0, 1, 2].map((index) =>
+            reach >= index + 1 ? 'full' : 'empty'
+        )
+
+        const operation = this.box.operation
+        if (!operation?.active || !operation.stage) return segments
+        const mark = (indices: number[], state: 'filling' | 'draining') => {
+            for (const index of indices) {
+                if (state === 'filling' && segments[index] === 'full') continue
+                segments[index] = state
+            }
+        }
+        switch (operation.stage) {
+            case 'feeding_to_buffer':
+                mark([0, 1], 'filling')
+                break
+            case 'feeding_to_printhead':
+                segments[0] = segments[1] = 'full'
+                mark([2], 'filling')
+                break
+            case 'seating':
+                return ['full', 'full', 'full']
+            case 'retracting_from_printhead':
+                segments[0] = segments[1] = 'full'
+                segments[2] = 'draining'
+                break
+            case 'retracting_to_cfs':
+                segments[2] = head.on ? 'draining' : 'empty'
+                segments[0] = segments[1] = 'draining'
+                break
+            case 'verifying':
+                return operation.kind === 'unload' ? ['empty', 'empty', 'empty'] : ['full', 'full', 'full']
+        }
+        return segments
     }
 
     /** Bays of the CFS that feeds the path (or the first one) for the icon. */
@@ -1745,27 +1870,128 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         0 0 0 3px var(--cfs-slot-outline, transparent);
 }
 
-/* Filament line between two stages, in the loaded filament colour. */
+/*
+ * PTFE tube between two stages: a translucent tube with the filament inside,
+ * in the real spool colour. Vertical layout: the tube runs under the icons.
+ */
 .cfs-path-link {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 16px;
-    padding-left: 36px;
+    align-items: stretch;
     justify-content: flex-start;
+    height: 24px;
+    padding-left: 30px;
 }
 
-.cfs-path-line {
+.cfs-path-tube {
     position: relative;
-    width: 3px;
+    width: 12px;
     height: 100%;
-    border-radius: 2px;
-    background: repeating-linear-gradient(to bottom, rgba(128, 128, 128, 0.55) 0 3px, transparent 3px 6px);
+    overflow: hidden;
+    border-radius: 6px;
+    background: linear-gradient(
+        90deg,
+        rgba(128, 128, 128, 0.1),
+        rgba(255, 255, 255, 0.22) 45%,
+        rgba(128, 128, 128, 0.1)
+    );
+    box-shadow: inset 0 0 0 1px rgba(160, 160, 160, 0.55);
 }
 
-.cfs-path-link--on .cfs-path-line {
+.cfs-path-filament {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 4px;
+    height: 0;
+    border-radius: 2px;
     background: var(--cfs-path-color);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+    box-shadow: 0 0 0 1px var(--cfs-path-outline, transparent);
+    transform: translateX(-50%);
+    transition: height 0.4s ease;
+}
+
+.cfs-path-tube--full .cfs-path-filament {
+    height: 100%;
+}
+
+.cfs-path-tube--filling .cfs-path-filament {
+    animation: cfs-tube-fill-v 1.4s ease-in-out infinite;
+}
+
+.cfs-path-tube--draining .cfs-path-filament {
+    animation: cfs-tube-drain-v 1.4s ease-in-out infinite;
+}
+
+@keyframes cfs-tube-fill-v {
+    from {
+        height: 0;
+    }
+    to {
+        height: 100%;
+    }
+}
+
+@keyframes cfs-tube-drain-v {
+    from {
+        height: 100%;
+    }
+    to {
+        height: 0;
+    }
+}
+
+@keyframes cfs-tube-fill-h {
+    from {
+        width: 0;
+    }
+    to {
+        width: 100%;
+    }
+}
+
+@keyframes cfs-tube-drain-h {
+    from {
+        width: 100%;
+    }
+    to {
+        width: 0;
+    }
+}
+
+.cfs-path-operation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.12);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.cfs-path-step--busy {
+    border-color: var(--v-info-base);
+    animation: cfs-path-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes cfs-path-pulse {
+    0%,
+    100% {
+        box-shadow: inset 0 0 0 1px var(--v-info-base);
+    }
+    50% {
+        box-shadow:
+            inset 0 0 0 1px var(--v-info-base),
+            0 0 0 3px rgba(128, 128, 128, 0.25);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cfs-path-step--busy,
+    .cfs-path-tube .cfs-path-filament {
+        animation: none !important;
+    }
 }
 
 .cfs-path-actions {
@@ -1819,16 +2045,46 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     }
 
     .cfs-path-link {
-        width: 22px;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
         height: auto;
         padding-left: 0;
-        justify-content: center;
     }
 
-    .cfs-path-line {
+    .cfs-path-tube {
         width: 100%;
-        height: 3px;
-        background: repeating-linear-gradient(to right, rgba(128, 128, 128, 0.55) 0 3px, transparent 3px 6px);
+        height: 12px;
+        background: linear-gradient(
+            180deg,
+            rgba(128, 128, 128, 0.1),
+            rgba(255, 255, 255, 0.22) 45%,
+            rgba(128, 128, 128, 0.1)
+        );
+    }
+
+    .cfs-path-filament {
+        top: 50%;
+        left: 0;
+        width: 0;
+        height: 4px;
+        transform: translateY(-50%);
+        transition: width 0.4s ease;
+    }
+
+    .cfs-path-tube--full .cfs-path-filament {
+        width: 100%;
+        height: 4px;
+    }
+
+    .cfs-path-tube--filling .cfs-path-filament {
+        height: 4px;
+        animation-name: cfs-tube-fill-h;
+    }
+
+    .cfs-path-tube--draining .cfs-path-filament {
+        height: 4px;
+        animation-name: cfs-tube-drain-h;
     }
 }
 </style>
