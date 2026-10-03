@@ -128,15 +128,26 @@ export interface CfsLoadPath {
     }
 }
 
+export interface CfsBoxUnit {
+    address: number
+    online: boolean
+    status_code: number | null
+    state_code: number | null
+    temp_c: number | null
+    humidity_pct: number | null
+    slots: number[]
+}
+
 export interface CfsRecovery {
     blocked: boolean
     automatic: boolean
     target: number | null
     step: string | null
     reason: string | null
-    retry_command: string | null
-    resume_prepared: boolean
-    resume_temperature: number | null
+    // Older backends only (before the 071c813 pause contract).
+    retry_command?: string | null
+    resume_prepared?: boolean
+    resume_temperature?: number | null
 }
 
 export interface CfsBoxState {
@@ -159,6 +170,7 @@ export interface CfsBoxState {
     loaded_mask: number
     slot_filament_mask: number
     slots: CfsSlot[]
+    boxes?: CfsBoxUnit[]
     materials: Record<string, CfsMaterial>
     filaments: Record<string, CfsFilament>
     runout: CfsRunout | null

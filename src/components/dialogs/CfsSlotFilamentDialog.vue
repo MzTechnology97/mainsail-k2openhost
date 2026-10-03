@@ -154,6 +154,7 @@ import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
+import { cfsSlotLabel } from '@/plugins/cfsLabels'
 import { mdiClose, mdiNfc, mdiNfcVariant, mdiPackageVariantClosed, mdiRefresh } from '@mdi/js'
 
 interface SelectItem {
@@ -285,7 +286,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     slotLabel(slot: CfsSlot): string {
-        return slot.external ? 'External spool (EXT)' : `T${slot.index}`
+        return cfsSlotLabel(slot)
     }
 
     close(): void {

@@ -121,6 +121,7 @@ import { Component, Mixins, Prop, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import { FileStateGcodefile } from '@/store/files/types'
 import { CfsBoxState, CfsPrintInfo, CfsPrintTool, CfsSlot } from '@/types/cfs'
+import { cfsSlotLabel } from '@/plugins/cfsLabels'
 
 interface SlotItem {
     text: string
@@ -225,7 +226,7 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     }
 
     slotText(slot: CfsSlot): string {
-        const label = slot.external ? 'EXT' : `T${slot.index}`
+        const label = cfsSlotLabel(slot)
         const identity = slot.name || slot.material || (slot.present ? 'Filament present' : 'Empty')
         const suffix = slot.loaded ? ' · loaded' : ''
         return `${label} · ${identity}${suffix}`
