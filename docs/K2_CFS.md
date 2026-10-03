@@ -434,13 +434,30 @@ Pictures 5–7 were taken with the commands intercepted, so the reference machin
 
 When a print starts from Mainsail, the dialog asks the backend to read the OrcaSlicer metadata of the file (`BOX_PRINT_INFO`). Each slicer tool is a row: its `T` badge, spool colour, profile and material, an arrow, and the CFS slot or external spool that will feed it. Under the source a label says how well it fits: **Same material and colour**, **Same material**, **Different material** or **Not mapped**, and the row's accent colour matches.
 
-- **Auto map** uses the backend matcher. Exact profile matches win, compatible Generic profiles are a safe fallback, and among equivalent RFID spools the lowest remaining one is preferred.
+- **Auto map** uses the backend matcher. Material and colour decide; an identical OrcaSlicer preset name is a bonus (Orca adds the printer to the preset name, for example `Bambu PLA Basic @K2`, so it rarely matches exactly). Compatible Generic profiles are a safe fallback. Among equivalent spools, one with enough filament wins, then the lowest remaining one is used up first.
 - **Filament source** lets you change any tool. Each choice shows its live colour dot, slot name, profile and remaining filament.
 - **Print** starts the job with `BOX_PRINT_START FILENAME=... MAP=tool:slot,...`. During the job the slicer's `T0`, `T1`… go to the mapped physical slots.
-- A multicolour job with a tool that cannot be matched is blocked instead of guessed.
+- A job with a tool that cannot be matched is blocked instead of guessed (`auto_map_block_unresolved`).
 - Files without filament metadata use the normal Mainsail start.
 
 Print starts that do not come from this dialog (OrcaSlicer upload-and-print, Moonraker API) use the same backend auto-mapper when `auto_map_prints` is enabled in `[box_print_mapping]`.
+
+### Warnings before and during a print
+
+Two situations produce a **warning**. Warnings never block the print: they are shown in the dialog, printed in the console when the print starts, and kept in the CFS panel while it runs.
+
+| Warning              | When                                                                                                                                                                                                                                                                                          | Example                                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **May run out**      | The RFID remaining estimate of the chosen spool is below the filament the slicer expects for that tool (the G-code length + 10 % + 1 m for priming and purging). With runout swap on, identical spools (same material and colour) are added. Spools without an RFID estimate count as enough. | <img src="images/k2-openhost/cfs-print-warning-low.png" alt="Spool that may run out" width="420"> |
+| **Material variant** | A base material is mapped to its filled variant, or the reverse: `PETG` on `PETG-CF`, `PLA` on `PLA-GF` (fillers CF, GF, KF, AF). The matcher uses a variant only when nothing better is loaded. Related materials such as `PLA` / `PLA+` match normally.                                     | <img src="images/k2-openhost/cfs-print-warning-variant.png" alt="Material variant" width="420">   |
+
+In the second example the teal PETG tool has no slot at all, so the dialog asks to map it before printing.
+
+While the print runs the panel keeps the warnings of the map in use (the backend's `mapping_warnings`):
+
+<img src="images/k2-openhost/cfs-panel-mapping-warning.png" alt="Mapping warning in the CFS panel" width="474">
+
+Runout swap is stricter than the start-of-print matcher: when a spool runs out mid-print, the backend only continues on a spool with **exactly the same material and colour**. A PETG spool never continues on PETG-CF; without an identical spool the print pauses for runout.
 
 ## 12. Layout on any screen
 
@@ -495,7 +512,7 @@ Fields used:
 | `recovery`                                                                                  | blocked state and reason                                                                                                   |
 | `filaments`, `materials`                                                                    | library and catalog; each filament carries `source` (_newer backend_)                                                      |
 | `filament_library`                                                                          | library file path, counts and error (_optional; newer backend_)                                                            |
-| `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`                      | print-start mapping                                                                                                        |
+| `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`, `mapping_warnings`  | print-start mapping and its warnings                                                                                       |
 | `unload_after_print_enabled`, `rfid_insert_reading_enabled`, `rfid_startup_reading_enabled` | settings switches                                                                                                          |
 
 The printhead stage also reads `printer.extruder` and `printer['filament_switch_sensor filament_sensor']`.

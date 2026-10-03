@@ -84,6 +84,20 @@ export interface CfsPrintTool {
     color: string
     material: string
     name: string
+    /** Filament the slicer expects this tool to use (newer backend). */
+    length_mm?: number
+}
+
+/** Mapping warning from the backend: informational, it never blocks a print. */
+export interface CfsMappingWarning {
+    kind: 'low_filament' | 'material_variant' | 'material_mismatch'
+    tool: number
+    slot: number
+    needed_m?: number
+    remaining_m?: number
+    includes_swap?: boolean
+    tool_material?: string
+    slot_material?: string
 }
 
 export interface CfsPrintInfo {
@@ -102,6 +116,7 @@ export interface CfsAutoMapping {
     state: string
     map: Record<string, number>
     unresolved: number[]
+    warnings?: CfsMappingWarning[]
 }
 
 export interface CfsLoadPath {
@@ -180,6 +195,8 @@ export interface CfsBoxState {
     print_info?: CfsPrintInfo | null
     print_mapping?: CfsPrintMapping
     auto_mapping?: CfsAutoMapping
+    /** Warnings of the map used by the current print (newer backend). */
+    mapping_warnings?: CfsMappingWarning[]
     data_ready: boolean
     status: string
     status_code: number
