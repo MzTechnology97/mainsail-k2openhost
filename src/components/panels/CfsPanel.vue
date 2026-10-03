@@ -112,7 +112,10 @@
                 </v-btn>
             </v-alert>
 
-            <section class="cfs-path" aria-label="Filament path" :style="{ '--cfs-path-color': pathColor }">
+            <section
+                class="cfs-path"
+                aria-label="Filament path"
+                :style="{ '--cfs-path-color': pathColor, '--cfs-path-outline': colorOutline(pathColor) }">
                 <div class="cfs-path-steps">
                     <template v-for="(step, index) in pathSteps">
                         <div
@@ -1652,6 +1655,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     overflow: visible;
 }
 
+/* Keep a black or white nozzle icon visible on any background. */
+.cfs-path-step--printhead.cfs-path-step--on .v-icon {
+    filter: drop-shadow(0 0 1px var(--cfs-path-outline, transparent))
+        drop-shadow(0 0 1px var(--cfs-path-outline, transparent));
+}
+
 .cfs-path-cfs-body {
     fill: rgba(128, 128, 128, 0.22);
     stroke: rgba(160, 160, 160, 0.75);
@@ -1783,6 +1792,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     .cfs-path-icon {
         flex-basis: auto;
         justify-content: flex-start;
+        height: 42px;
+    }
+
+    .cfs-path-cfs {
+        width: 60px;
+        height: 42px;
     }
 
     .cfs-path-body {
