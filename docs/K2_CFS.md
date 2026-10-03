@@ -54,28 +54,55 @@ Header buttons: filament library, RFID scan of all populated slots, unload, and 
 
 ## 2. Filament path
 
-| Idle                                                                                       | Printing (simulated)                                                                                     |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| <img src="images/k2-openhost/cfs-path-idle-wide.png" alt="Filament path idle" width="420"> | <img src="images/k2-openhost/cfs-path-printing-wide.png" alt="Filament path while printing" width="420"> |
+| Idle                                                                                                     | Loading (simulated)                                                                                        |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| <img src="images/k2-openhost/cfs-path-idle-wide.png" alt="Filament path idle" width="420">               | <img src="images/k2-openhost/cfs-path-loading-wide.png" alt="Filament path while loading" width="420">     |
+| **Printing (simulated)**                                                                                 | **Unloading (simulated)**                                                                                  |
+| <img src="images/k2-openhost/cfs-path-printing-wide.png" alt="Filament path while printing" width="420"> | <img src="images/k2-openhost/cfs-path-unloading-wide.png" alt="Filament path while unloading" width="420"> |
 
-The path follows the filament from the CFS to the printhead, in the spirit of the _Filament Box_ widget of Jacob10383's K2 firmware. It is driven by `box.load_path`:
+The path follows the filament from the CFS to the printhead, in the spirit of the _Filament Box_ widget of Jacob10383's K2 firmware:
 
-| Stage          | Shows                                                                                                                    | Highlighted when                            |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| **CFS / Slot** | A CFS icon with its four bays in their real filament colours (the active bay is ringed), then the slot name and material | a slot feeds the printhead                  |
-| **Encoder**    | Feed encoder position in mm                                                                                              | the Box tracks a print                      |
-| **Buffer**     | `Empty`, `Partial` or `Full`                                                                                             | filament is in the buffer                   |
-| **Printhead**  | Nozzle icon, `Triggered` / `Not triggered`                                                                               | the printhead filament sensor sees filament |
+| Stage          | Shows                                                                                                                    | Highlighted when                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| **CFS / Slot** | A CFS icon with its four bays in their real filament colours (the loaded bay is ringed), then the slot name and material | a slot feeds the printhead, or is being loaded |
+| **Encoder**    | Feed encoder position in mm                                                                                              | the Box tracks a print                         |
+| **Buffer**     | `Empty`, `Partial` or `Full`                                                                                             | filament is in the buffer                      |
+| **Printhead**  | Nozzle icon, `Triggered` / `Not triggered`, hotend temperature and target                                                | the printhead filament sensor sees filament    |
 
-Stages holding filament get a green outline. They are joined by a line in the loaded filament's colour, and the nozzle icon takes that colour too. Empty links are dashed, and errors turn the stage red. An **Unload** button sits under the path.
+**PTFE tube.** The stages are joined by a translucent PTFE tube. Inside it runs the filament, in the real colour of the spool, and it reaches only as far as the sensors report:
+
+- the CFS slot feeding the path fills the tube from the CFS;
+- filament in the buffer (either limit switch) fills it up to the buffer;
+- the printhead sensor fills it up to the nozzle, which also takes the filament colour.
+
+Very dark or very light filament gets a contrast outline.
+
+**Live loads and unloads.** A load can wait up to 45 s on a single CFS command, and the Box status refresh is paused during operations. The backend therefore publishes an `operation` status that changes at every step. While a load or unload runs:
+
+- a banner shows the step, for example `Loading Slot 4 · Feeding to printhead`;
+- the stage the filament is moving into pulses in the info colour;
+- the tube segment being filled or emptied is animated in the direction of travel.
+
+Steps of a full colour change, such as `flush`, appear in the banner too. The printhead stage reads the Klipper filament sensor object directly, so it changes the moment the filament arrives or leaves. Users who prefer reduced motion get a static view.
+
+| Step                        | Banner text                        | Tube                        |
+| --------------------------- | ---------------------------------- | --------------------------- |
+| `preparing`                 | Preparing                          | unchanged                   |
+| `feeding_to_buffer`         | Feeding to buffer                  | CFS → buffer filling        |
+| `feeding_to_printhead`      | Feeding to printhead               | buffer → printhead filling  |
+| `seating`, `verifying`      | Seating in the extruder, Verifying | full                        |
+| `retracting_from_printhead` | Retracting from printhead          | buffer → printhead emptying |
+| `retracting_to_cfs`         | Retracting to CFS                  | CFS → buffer emptying       |
+
+Stages holding filament get a green outline; errors turn a stage red. An **Unload** button sits under the path.
 
 The buffer value is the state of its two limit switches. Creality's firmware calls them the _empty limit_ and the _full limit_, and an idle unloaded K2 reports `2`, so the UI reads bit 0 as full and bit 1 as empty.
 
-On a narrow panel the stages stack vertically:
+On a narrow panel the stages stack vertically and the tube runs under the icons:
 
-| Idle                                                                                                  | Printing (simulated)                                                                                          |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| <img src="images/k2-openhost/cfs-path-idle-column.png" alt="Vertical filament path idle" width="330"> | <img src="images/k2-openhost/cfs-path-printing-column.png" alt="Vertical filament path printing" width="330"> |
+| Idle                                                                                                  | Loading (simulated)                                                                                         | Printing (simulated)                                                                                          |
+| ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| <img src="images/k2-openhost/cfs-path-idle-column.png" alt="Vertical filament path idle" width="260"> | <img src="images/k2-openhost/cfs-path-loading-column.png" alt="Vertical filament path loading" width="260"> | <img src="images/k2-openhost/cfs-path-printing-column.png" alt="Vertical filament path printing" width="260"> |
 
 ## 3. CFS units and slot tiles
 
@@ -264,6 +291,7 @@ Fields used:
 | Field                                                                                       | Purpose                                                                                                                    |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `slots[]`                                                                                   | physical slots plus the external spool: presence, loaded flag, profile, colour, RFID data, remaining                       |
+| `operation`                                                                                 | running load/unload: active, kind, slot, stage, plus the change-engine step and target (_optional; newer backend_)         |
 | `boxes[]`                                                                                   | one entry per CFS: address, online, status/state codes, own temperature/humidity, slot indices (_optional; newer backend_) |
 | `temp_c`, `humidity_pct`                                                                    | environment of the box on the load path (fallback when `boxes` is missing)                                                 |
 | `load_path`                                                                                 | source slot, encoder, buffer, printhead sensor, clog detection                                                             |
@@ -273,7 +301,9 @@ Fields used:
 | `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`                      | print-start mapping                                                                                                        |
 | `unload_after_print_enabled`, `rfid_insert_reading_enabled`, `rfid_startup_reading_enabled` | settings switches                                                                                                          |
 
-`boxes[]` and `BOX_SELECT_SLOT` come with the K2-OpenHost integration of Jacob10383's firmware sync 071c813 (`kalico-k2pro` branch `cfs-upstream-071c813`, pending hardware tests). The UI detects both and falls back to slot-index grouping and `T<n>` on older backends.
+The printhead stage also reads `printer.extruder` and `printer['filament_switch_sensor filament_sensor']`.
+
+`boxes[]`, `operation` and `BOX_SELECT_SLOT` come with the K2-OpenHost integration of Jacob10383's firmware sync 071c813 (`kalico-k2pro` branch `cfs-upstream-071c813`, pending hardware tests). The UI detects both and falls back to slot-index grouping and `T<n>` on older backends.
 
 ## 14. Commands sent by the UI
 
