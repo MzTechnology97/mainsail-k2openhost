@@ -17,8 +17,12 @@ export function cfsSlotLabel(slot: Pick<CfsSlot, 'index' | 'external'>): string 
     return `Box ${cfsBoxNumber(slot.index)}, slot ${cfsLocalSlot(slot.index)}`
 }
 
-/** Compact form for chips and selects: "B1·S3" or "EXT". */
-export function cfsSlotShortLabel(slot: Pick<CfsSlot, 'index' | 'external'>): string {
+/**
+ * Compact form for chips: "B1·S3" with several CFS units, "Slot 3" when only
+ * one unit is connected, "EXT" for the external spool.
+ */
+export function cfsSlotShortLabel(slot: Pick<CfsSlot, 'index' | 'external'>, multiBox = true): string {
     if (slot.external) return 'EXT'
+    if (!multiBox) return `Slot ${cfsLocalSlot(slot.index)}`
     return `B${cfsBoxNumber(slot.index)}·S${cfsLocalSlot(slot.index)}`
 }
