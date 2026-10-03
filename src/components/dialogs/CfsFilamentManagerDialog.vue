@@ -474,8 +474,8 @@
                 <v-card-actions>
                     <span class="cfs-brands-note">
                         <v-icon x-small class="mr-1">{{ mdiInformationOutline }}</v-icon>
-                        Added brands are stored in Mainsail's settings on the printer. A brand used by a profile can be
-                        deleted once no profile uses it; system catalog brands are locked.
+                        Added brands are stored in Mainsail's settings on the printer. Deleting a brand used by custom
+                        profiles moves them to another brand (or none); system catalog brands are locked.
                     </span>
                 </v-card-actions>
             </v-card>
