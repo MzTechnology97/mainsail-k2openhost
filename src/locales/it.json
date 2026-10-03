@@ -143,6 +143,7 @@
         "ScrewOutput": "{current} di {max}"
     },
     "Buttons": {
+        "Back": "Indietro",
         "Cancel": "Annulla",
         "Close": "Chiudi",
         "Delete": "Elimina",
@@ -596,6 +597,9 @@
         "Headline": "Probe Manuale"
     },
     "Panels": {
+        "CfsPanel": {
+            "Headline": "CFS"
+        },
         "ExtruderControlPanel": {
             "Allowed": "Consentito",
             "CleanNozzle": "Pulisci Ugello",
