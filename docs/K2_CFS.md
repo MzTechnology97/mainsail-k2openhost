@@ -180,15 +180,15 @@ The footer shows the API, inventory and print-mapping contract versions. On phon
 
 ## 7. Slot editor (non-RFID spools)
 
-<img src="images/k2-openhost/cfs-slot-editor.png" alt="Slot editor" width="560">
+<img src="images/k2-openhost/cfs-slot-editor.png" alt="Slot editor" width="680">
 
-The pencil opens the slot editor:
+The pencil opens the slot editor. The slot editor, the RFID sheet and the library use the same profile card: spool swatch, name, material and brand, origin badges, the temperature bar and the ID/pressure advance footer.
 
-1. Pick **Brand → Type → Name** from the catalog. The material type comes from the known catalog and is not free text.
-2. Pick a **colour** from the palette (derived from the K2-RFID/Creality app colours) or use **Custom color**.
-3. Press **Save**.
+1. **Profile**: **Brand** and **Material** narrow the list, then **Filament profile** picks the profile (searchable, with colour dots). The counter says how many profiles match.
+2. **Colour of this spool**: pick from the palette (derived from the K2-RFID/Creality app colours) or use **Custom color**.
+3. **Save** assigns the profile and colour to the slot (`_BOX_SLOT_ASSIGN ... COLOR=`).
 
-The nozzle range and pressure advance of the chosen profile are shown read-only. The selected colour is stored on that slot only and does not create a new material profile. **Reset slot** clears only this bay's assignment; library profiles stay available.
+On the right, the **Preview** shows the card as it will be stored, and **Currently in the slot** shows what the bay holds now. The colour belongs to this slot only and does not create a new profile. **Reset slot** clears only this bay's assignment; library profiles stay available.
 
 Manual editing is disabled while a slot is managed by a live RFID tag; removing the tagged spool frees the slot.
 
@@ -196,16 +196,15 @@ Manual editing is disabled while a slot is managed by a live RFID tag; removing 
 
 <img src="images/k2-openhost/cfs-rfid-info.png" alt="RFID filament information" width="560">
 
-RFID-managed slots show a read-only sheet with:
+RFID-managed slots open a read-only sheet:
 
-- material, full name, brand and colour;
-- RFID code and filament ID;
-- nozzle temperature and pressure advance;
-- remaining filament in percent and metres.
+- **Filament on the tag**: the profile card, with the remaining filament drawn as a sector of the spool and the `RFID`, `Read only` and tag code badges.
+- **Remaining**: a bar in the spool colour with the percentage and metres left.
+- **Tag details**: material, full name, brand, colour, RFID code, filament ID, nozzle temperature and pressure advance.
 
-**Reread RFID** reads the tag again.
+**Reread RFID** reads the tag again (`_BOX_RFID_READ_SLOT`).
 
-**Unknown tags:** when a tag carries a material code missing from the inventory, the tile shows `RFID ?`. Its button opens the filament library with the tag code and colour already filled in; saving the new profile resolves the slot at once. Codes follow the DnG-Crafts/K2-RFID scheme (five-character material IDs, `1xxxxx` RFID filament IDs), so tags written with that tool are recognised.
+**Unknown tags:** when a tag carries a material code missing from the inventory, the tile shows `RFID ?`. Its button opens the filament library with the tag code and colour already filled in; saving the new profile resolves the slot at once. Codes follow the DnG-Crafts/K2-RFID scheme (five-digit material IDs, `1xxxxx` tag codes), so tags written with that app are recognised.
 
 ## 9. Filament library
 
@@ -218,8 +217,17 @@ The library holds the read-only **system catalog** shipped with K2-OpenHost (the
 - Every profile is a card with:
   - a spool swatch in its colour, its name, material and brand;
   - a **temperature bar**: the nozzle range on a 150–350 °C scale, with the target/flush temperature as a marker;
-  - badges: `System` or `Custom`, the RFID material code, and **In use** with the slots currently using the profile;
+  - badges: the **origin**, the RFID material code, and **In use** with the slots currently using the profile;
   - its ID, pressure advance and Spoolman ID.
+- Origin badges:
+
+  | Badge           | Meaning                                                            |
+  | --------------- | ------------------------------------------------------------------ |
+  | `System`        | shipped Creality/Generic catalog, read only                        |
+  | `Custom`        | created in the library                                             |
+  | `Imported`      | merged from a K2-RFID material database (`material_database_path`) |
+  | `From RFID tag` | registered automatically when its tag was read                     |
+
 - Quick filters **All**, **Custom**, **System** and **In use** (with counts), plus text search over name, brand, material, ID and RFID code, and **Brand** / **Material** filters.
 - An empty result offers **Clear filters**.
 
@@ -237,14 +245,49 @@ The editor is split into sections, with a live **preview** of the card:
 
 1. **Start from** (new profiles): search any system or custom profile and copy its values. The ID and RFID code you already set are kept.
 2. **Identity**:
-   - brand (choose an existing one or type a new one) and material (from the known material families);
-   - name, ideally the OrcaSlicer preset name, so automatic slot mapping can match it;
-   - **ID**: a free 5-digit ID (from 90001) is generated, compatible with K2-RFID tags. The editor refuses an ID that belongs to a system profile or to an existing custom profile, which the backend would otherwise silently overwrite.
+   - **Brand**: choose one from the list or type a new one. The typed text counts at once, even if you press **Create** without Enter. The tag button next to the field opens **Brands** (below).
+   - **Material**, from the known material families;
+   - **Name**, ideally the OrcaSlicer preset name, so automatic slot mapping can match it;
+   - **ID**: a free 5-digit ID (from 90001) is generated. It is the K2-RFID material ID: the hint shows the tag code (`1` + ID) that loads this profile. The editor refuses an ID that belongs to a system profile or to an existing custom profile, which the backend would otherwise overwrite.
 3. **Temperatures**: a range slider plus minimum, target/flush and maximum fields. The target must lie inside the range.
 4. **Colour**: the default colour for manual slots, from the palette or a custom colour.
 5. **Advanced**: pressure advance (0–2), RFID material code (`1xxxxx` tag codes are normalised) and Spoolman ID.
 
 **Create filament** stays disabled until every field is valid. A tag with an unknown RFID code opens this editor prefilled with the tag's code and colour.
+
+**Brands**
+
+| Brand list                                                                            | Deleting a brand in use                                                                             |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| <img src="images/k2-openhost/cfs-library-brands.png" alt="Brands dialog" width="380"> | <img src="images/k2-openhost/cfs-library-brand-delete.png" alt="Delete a brand in use" width="380"> |
+
+**Brands** (library footer, or the tag button next to the Brand field) lists every brand with what uses it:
+
+- **Add** a brand, so it is offered in the editor before any profile uses it. A brand typed in the editor joins the list when the profile is saved.
+- **Delete** removes a brand nobody uses at once.
+- For a brand used by custom profiles, **Delete** asks where those profiles go: another brand, none, or a new name, which renames the brand. Only the brand changes; temperatures, colour and every other value stay as they are. **Show profiles** filters the library on that brand.
+- Brands of the system catalog are locked.
+
+Added brands are stored in Mainsail's settings on the printer (Moonraker database, namespace `mainsail`, key `cfs.customBrands`), so every browser sees them.
+
+**Where profiles are saved**
+
+<img src="images/k2-openhost/cfs-library-file.png" alt="Library file and reload" width="760">
+
+Custom profiles live in their own file, `config/cfs_filaments.json` (backend `library_path`), named in the library footer:
+
+- it shows up in Mainsail's file manager and in Moonraker backups;
+- it can be edited or replaced from the file manager, the Moonraker file API or a companion app. The backend reloads it within a few seconds, or at once with the reload button (`_BOX_FILAMENT_RELOAD`), and slots using a changed profile follow it;
+- a damaged file is never overwritten: the library shows the error and changes are refused until the file is fixed.
+
+The file uses the same compact format as the system catalog: a `materials` list with `id`, `brand`, `name`, `material`, `color`, `target_temp`, `min_temp`, `max_temp`, `pressure_advance`, `rfid_codes`, `aliases`, `spoolman_id` and `source`. These keys keep the integrations working:
+
+| Integration      | Key                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| K2-RFID tags     | `id` (5 digits) and `rfid_codes` (`1` + ID): write a tag with that material ID               |
+| OrcaSlicer       | `name` (preset name) for automatic mapping                                                   |
+| Spoolman         | `spoolman_id`                                                                                |
+| K2-RFID database | `material_database_path` is imported when its content changes; deleted profiles stay deleted |
 
 On phones the library opens full screen:
 
@@ -256,7 +299,7 @@ On phones the library opens full screen:
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | <img src="images/k2-openhost/cfs-print-dialog.png" alt="Print dialog with CFS mapping" width="420"> | <img src="images/k2-openhost/cfs-print-source.png" alt="Filament source menu" width="420"> |
 
-When a print starts from Mainsail, the dialog asks the backend to read the OrcaSlicer metadata of the file (`BOX_PRINT_INFO`). It then lists every slicer tool with its colour, profile and material, and the CFS slot or external spool that will feed it.
+When a print starts from Mainsail, the dialog asks the backend to read the OrcaSlicer metadata of the file (`BOX_PRINT_INFO`). Each slicer tool is a row: its `T` badge, spool colour, profile and material, an arrow, and the CFS slot or external spool that will feed it. Under the source a label says how well it fits: **Same material and colour**, **Same material**, **Different material** or **Not mapped**, and the row's accent colour matches.
 
 - **Auto map** uses the backend matcher. Exact profile matches win, compatible Generic profiles are a safe fallback, and among equivalent RFID spools the lowest remaining one is preferred.
 - **Filament source** lets you change any tool. Each choice shows its live colour dot, slot name, profile and remaining filament.
@@ -317,7 +360,8 @@ Fields used:
 | `load_path`                                                                                 | source slot, encoder, buffer, printhead sensor, clog detection                                                             |
 | `runout`, `runout_groups`, `runout_swap_enabled`                                            | runout sequence and groups                                                                                                 |
 | `recovery`                                                                                  | blocked state and reason                                                                                                   |
-| `filaments`, `materials`                                                                    | library and catalog                                                                                                        |
+| `filaments`, `materials`                                                                    | library and catalog; each filament carries `source` (_newer backend_)                                                      |
+| `filament_library`                                                                          | library file path, counts and error (_optional; newer backend_)                                                            |
 | `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`                      | print-start mapping                                                                                                        |
 | `unload_after_print_enabled`, `rfid_insert_reading_enabled`, `rfid_startup_reading_enabled` | settings switches                                                                                                          |
 
@@ -334,6 +378,7 @@ BOX_RFID_SCAN
 _BOX_RFID_READ_SLOT SLOT=<n>
 _BOX_SLOT_SET / _BOX_SLOT_CLEAR / _BOX_SLOT_ASSIGN
 _BOX_FILAMENT_SET / _BOX_FILAMENT_DELETE
+_BOX_FILAMENT_RELOAD
 _BOX_SET_RUNOUT_SWAP ENABLE=<0|1>
 _BOX_SET_UNLOAD_AFTER_PRINT ENABLE=<0|1>
 _BOX_SET_RFID_INSERT_READING ENABLE=<0|1>
@@ -346,11 +391,20 @@ BOX_PRINT_START FILENAME=<file> MAP=<tool:slot,...>
 
 ## 15. Persistence
 
-Slot assignments, custom profiles and remaining-filament estimates are backend state, normally stored in `~/printer_data/filament_box.json`. They survive browser reloads and printer restarts.
+The backend keeps two files:
+
+- `~/printer_data/config/cfs_filaments.json`: custom filament profiles (see [Filament library](#9-filament-library)).
+- `~/printer_data/filament_box.json`: slot assignments, remaining-filament estimates, settings and box identities.
+
+The system catalog is read from the firmware at every start and never written, so catalog updates apply after an update. On the first start of this version, custom profiles found in `filament_box.json` move to the library file once; the old file is kept as `filament_box.json.pre-library`.
+
+Both survive browser reloads and printer restarts.
 
 - At startup the backend restores cached assignments for spools still present, after one presence query; it does not sweep every RFID tag.
 - Removing a spool clears only that bay.
 - A confirmed runout stores zero remaining and clears the empty source.
+
+UI preferences such as added brands are Mainsail settings in the Moonraker database.
 
 ## 16. Deployment on the CM5
 
