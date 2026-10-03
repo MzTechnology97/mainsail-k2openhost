@@ -367,7 +367,7 @@ Fields used:
 
 The printhead stage also reads `printer.extruder` and `printer['filament_switch_sensor filament_sensor']`.
 
-`boxes[]`, `operation` and `BOX_SELECT_SLOT` come with the K2-OpenHost integration of Jacob10383's firmware sync 071c813 (`kalico-k2pro` branch `cfs-upstream-071c813`, pending hardware tests). The UI detects both and falls back to slot-index grouping and `T<n>` on older backends.
+`boxes[]`, `operation` and `BOX_SELECT_SLOT` come with the K2-OpenHost integration of Jacob10383's firmware sync 071c813 (merged into `kalico-k2pro` `k2-pro-openhost` on 2026-10-03, hardware tests pending). The UI detects both and falls back to slot-index grouping and `T<n>` on older backends.
 
 ## 14. Commands sent by the UI
 
