@@ -1,6 +1,6 @@
 # Mainsail in the K2-OpenHost project
 
-Updated: **2026-10-01**.
+Updated: **2026-10-02**.
 
 This repository is a fork of the **Mainsail** project retained for the K2-OpenHost UI/integration track. All original Mainsail authorship, licensing and upstream documentation remain authoritative for Mainsail itself.
 
@@ -54,11 +54,16 @@ There is no extra CFS HTTP daemon, no direct RS-485 parsing in the frontend, and
 The panel consumes the Box API for:
 
 - CFS/external slot presence and loaded state;
-- filament material, color, brand/name and RFID percentage;
-- temperature and humidity when available;
+- persistent inventory v2 with custom and read-only system filament profiles;
+- material, color, brand/name, nozzle metadata and RFID/manual/library provenance;
+- hardware-reported and OpenHost-estimated remaining filament;
+- K2 Pro CFS temperature and humidity;
 - buffer, encoder, printhead sensor and clog state;
 - runout/recovery state;
+- manual non-RFID slot editing, preset colors and explicit RFID reread controls;
 - Box settings and CFS actions when the backend is in operational mode.
+
+The base Box API remains `api_version: 1`; the current additive contracts are `filament_inventory_version: 2` and `print_mapping_version: 1`.
 
 ## CFS print mapping
 
@@ -80,7 +85,7 @@ print_info
 print_mapping
 ```
 
-When the normal Mainsail **Print** dialog opens, the K2-OpenHost frontend asks Kalico to inspect the Orca G-code footer. If filament usage metadata is present, the dialog shows each logical slicer tool and asks which CFS slot should supply it. It can auto-map by material/color and still allows manual selection.
+When the normal Mainsail **Print** dialog opens, the K2-OpenHost frontend asks Kalico to inspect the Orca G-code footer. If filament usage metadata is present, the dialog shows each logical slicer tool and asks which CFS slot should supply it. It uses the backend auto-mapper against the persistent physical-slot inventory and still allows manual selection. Exact profile matches are preferred; compatible Generic system profiles can safely fill in when the slicer-specific preset name is unavailable.
 
 Conceptually:
 
@@ -99,7 +104,7 @@ The current compatibility bridge also translates Orca purge-matrix and nozzle-te
 
 ## Current validated machine-control milestone
 
-As of 2026-10-01, the external-host stack has validated on the real K2 Pro:
+As of 2026-10-02, the external-host stack has validated on the real K2 Pro:
 
 - Main MCU and Nozzle MCU communication;
 - RS-485 closed-loop motor control;
@@ -110,10 +115,13 @@ As of 2026-10-01, the external-host stack has validated on the real K2 Pro:
 - bed/nozzle/chamber heater control and PID tuning;
 - emergency shutdown of active heater loads;
 - a successful Klippain-ShakeTune resonance test;
-- protected CFS observation mode;
+- protected CFS observation mode plus operational Box/CFS mode;
+- K2 Pro CFS temperature/humidity;
+- persistent inventory schema v2 and K2-RFID/Creality system profiles;
+- persisted manual/RFID slot lifecycle with startup restore that does not require a full RFID sweep;
 - native Moonraker visibility of the `box` object and CFS slot/path state.
 
-The new mapped-print path still requires staged hardware validation before it is considered production-ready. Start with `BOX_PRINT_INFO` because it is metadata-only; validate `BOX_PRINT_START` only after the Box backend is intentionally switched from observation mode to operational mode.
+The Box backend is now intentionally running in operational mode on the development K2 Pro. `BOX_PRINT_INFO`, real inventory and backend auto-map decisions are validated; the remaining mapped-print milestone is a controlled `BOX_PRINT_START`, real tool change/runout behavior and a complete supervised print.
 
 Cartographer direct-USB validation and a complete supervised print remain pending.
 

@@ -55,7 +55,11 @@ The fork also ships the full Creality + Generic K2-RFID system catalog exposed b
 
 The dashboard keeps CFS cards readable in a horizontal responsive grid: each slot shows the filament/profile name, material/brand/temperature metadata and remaining percentage/metres without clipping. RFID slots use a vivid spool indicator whose colored sector follows the remaining percentage; clicking **RFID** opens the complete read-only database metadata. Untagged slots use the pencil editor with Brand → Type → Profile → Color selection and an explicit **Reset slot** action. The header RFID-scan button runs `BOX_RFID_SCAN` across populated bays, and each physical slot also exposes a one-slot reread action.
 
+The CFS dashboard uses larger two-column slot cards, vivid spool colors and a remaining-filament sector gauge. The Print dialog's **Filament source** menu shows a live color dot for every CFS/EXT choice.
+
 Slot assignments and RFID estimates are backend state, not browser state: they survive Mainsail reloads and printer restarts through the configured K2-OpenHost `filament_box.json`. A live slot removal clears only that bay assignment; confirmed runout also clears the depleted source after persisting its remaining estimate at zero. Startup restores occupied cached slots from JSON after one CFS presence-mask query and does not rescan every RFID tag unless the optional startup reread setting is explicitly enabled. The normal Print dialog and direct Orca/Moonraker starts use the same backend auto-mapper; exact profile matches win, Generic profiles are safe fallbacks when a slicer preset name is unavailable, and unresolved multicolor jobs are blocked rather than guessing.
+
+Detailed K2-OpenHost CFS behavior, persistence and validation boundaries are documented in [`docs/K2_CFS.md`](docs/K2_CFS.md) and [`K2-OPENHOST.md`](K2-OPENHOST.md).
 
 ## Getting Started
 

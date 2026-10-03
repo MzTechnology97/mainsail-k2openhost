@@ -89,7 +89,23 @@
                         outlined
                         hide-details
                         label="Filament source"
-                        @change="setMapping(tool.tool, $event)" />
+                        @change="setMapping(tool.tool, $event)">
+                        <template #selection="{ item }">
+                            <span class="cfs-source-dot mr-2" :style="{ backgroundColor: item.color }" />
+                            <span class="text-truncate">{{ item.text }}</span>
+                        </template>
+                        <template #item="{ item }">
+                            <div class="d-flex align-center min-width-0 py-1">
+                                <span class="cfs-source-dot mr-3" :style="{ backgroundColor: item.color }" />
+                                <div class="min-width-0">
+                                    <div class="body-2 text-truncate">{{ item.text }}</div>
+                                    <div v-if="item.meta" class="caption text--secondary text-truncate">
+                                        {{ item.meta }}
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </v-select>
                 </v-col>
             </v-row>
 
@@ -110,6 +126,8 @@ interface SlotItem {
     text: string
     value: number
     disabled: boolean
+    color: string
+    meta: string
 }
 
 @Component
@@ -158,6 +176,8 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
                 text: this.slotText(slot),
                 value: slot.index,
                 disabled: !slot.external && !slot.present,
+                color: this.slotColor(slot),
+                meta: this.slotMeta(slot),
             }))
     }
 
@@ -200,11 +220,23 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
         return /^#[0-9a-f]{6}$/i.test(color ?? '') ? color : '#757575'
     }
 
+    slotColor(slot: CfsSlot): string {
+        return /^#[0-9a-f]{6}$/i.test(slot.color ?? '') ? slot.color : '#757575'
+    }
+
     slotText(slot: CfsSlot): string {
-        const label = slot.external ? 'External spool (EXT)' : `T${slot.index}`
+        const label = slot.external ? 'EXT' : `T${slot.index}`
         const identity = slot.name || slot.material || (slot.present ? 'Filament present' : 'Empty')
         const suffix = slot.loaded ? ' · loaded' : ''
         return `${label} · ${identity}${suffix}`
+    }
+
+    slotMeta(slot: CfsSlot): string {
+        const parts = [slot.material, slot.brand].filter(Boolean)
+        if (typeof slot.rfid_percent === 'number' && Number.isFinite(slot.rfid_percent)) {
+            parts.push(`${Math.max(0, Math.min(100, slot.rfid_percent)).toFixed(0)}% remaining`)
+        }
+        return parts.join(' · ')
     }
 
     normalize(value: string): string {
@@ -375,5 +407,18 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     flex: 0 0 auto;
     border: 1px solid rgba(127, 127, 127, 0.55);
     box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.08);
+}
+
+.cfs-source-dot {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 16px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.34);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.28),
+        0 1px 4px rgba(0, 0, 0, 0.4);
+    filter: saturate(1.25) brightness(1.05);
 }
 </style>
