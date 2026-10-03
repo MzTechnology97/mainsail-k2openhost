@@ -159,14 +159,15 @@
                     <v-card-actions class="cfs-slot-actions pa-2">
                         <v-btn
                             v-if="!slot.external"
+                            icon
                             small
-                            text
                             color="primary"
                             :disabled="!canSelectSlot(slot)"
                             :loading="loadings.includes(`cfs_slot_${slot.index}`)"
+                            :title="$t('Panels.MmuPanel.ButtonLoad')"
+                            :aria-label="$t('Panels.MmuPanel.ButtonLoad')"
                             @click="selectSlot(slot)">
-                            <v-icon left small>{{ mdiPlay }}</v-icon>
-                            {{ $t('Panels.MmuPanel.ButtonLoad') }}
+                            <v-icon small>{{ mdiPlay }}</v-icon>
                         </v-btn>
                         <v-btn
                             v-else
@@ -211,15 +212,15 @@
                         </v-btn>
                         <v-btn
                             v-else
+                            icon
                             small
-                            text
                             color="primary"
                             class="cfs-edit-slot"
                             :disabled="printerIsPrinting"
                             title="View or edit manual slot filament"
+                            aria-label="Edit slot filament"
                             @click.stop="openSlotDialog(slot)">
-                            <v-icon left small>{{ mdiPencil }}</v-icon>
-                            Edit
+                            <v-icon small>{{ mdiPencil }}</v-icon>
                         </v-btn>
                         <v-spacer />
                         <v-icon v-if="slot.present" small color="success">{{ mdiCheckCircle }}</v-icon>
@@ -708,8 +709,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-    width: 100%;
-    max-width: 1180px;
+    width: calc(100% - 20px);
+    max-width: 1120px;
     margin: 0 auto;
     align-items: stretch;
 }
@@ -792,7 +793,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 }
 
 .cfs-slot-actions .cfs-edit-slot {
-    min-width: 54px !important;
+    min-width: 30px !important;
 }
 
 .cfs-spool {
@@ -873,6 +874,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
 @media (max-width: 820px) {
     .cfs-slot-grid {
         grid-template-columns: 1fr;
+        width: 100%;
         max-width: none;
     }
 
