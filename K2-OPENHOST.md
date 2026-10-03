@@ -100,8 +100,8 @@ If no supported filament-usage metadata is found, Mainsail falls back to its nor
 
 How the backend applies the map depends on the Kalico branch:
 
-- `k2-pro-openhost` (current main) keeps the hardware-validated change engine and a `box_print_mapping` layer that translates Orca purge-matrix and temperature metadata from logical tools to physical slots.
-- `cfs-upstream-071c813` (integration of Jacob10383's firmware sync, pending hardware tests) uses the native logical-tool engine, keeps the map across power-loss recovery and publishes the per-unit `boxes` status and `BOX_SELECT_SLOT`.
+- `k2-pro-openhost` since 2026-10-03 (integration of Jacob10383's firmware sync 071c813, hardware tests pending) uses the native logical-tool engine, keeps the map across power-loss recovery and publishes the per-unit `boxes` status, the live `operation` and `BOX_SELECT_SLOT`.
+- Older `k2-pro-openhost` revisions used a `box_print_mapping` layer that translated Orca purge-matrix and temperature metadata from logical tools to physical slots.
 
 The UI works with both and detects the newer features.
 
