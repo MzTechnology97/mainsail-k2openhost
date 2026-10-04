@@ -5,6 +5,7 @@ import { GuiMacrosStateMacrogroup } from '@/store/gui/macros/types'
 import {
     mdiArrowCollapseVertical,
     mdiCodeTags,
+    mdiEngineOutline,
     mdiConsoleLine,
     mdiDipSwitch,
     mdiEngine,
@@ -82,6 +83,8 @@ export default class DashboardMixin extends BaseMixin {
                 return afcIconLogo
             case 'cfs':
                 return mdiPackageVariantClosed
+            case 'motors':
+                return mdiEngineOutline
 
             default:
                 return mdiInformation
