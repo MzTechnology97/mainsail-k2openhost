@@ -463,6 +463,8 @@ When a print starts from Mainsail, the dialog asks the backend to read the OrcaS
 
 Print starts that do not come from this dialog (OrcaSlicer upload-and-print, Moonraker API) use the same backend auto-mapper when `auto_map_prints` is enabled in `[box_print_mapping]`.
 
+The official OrcaSlicer can also read the CFS slots before slicing: its filament **Sync** button fills the filament list from the printer (Moonraker `lane_data`), so each slicer tool already matches a slot. See [OrcaSlicer and the CFS](https://github.com/MzTechnology97/K2-OpenHost/blob/main/docs/en/ORCASLICER.md).
+
 ### Warnings before and during a print
 
 Two situations produce a **warning**. Warnings never block the print: they are shown in the dialog, printed in the console when the print starts, and kept in the CFS panel while it runs.
