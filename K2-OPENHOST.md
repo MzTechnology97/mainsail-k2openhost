@@ -138,13 +138,11 @@ Mainsail exposes Moonraker's Update Manager for the active K2-OpenHost source tr
 
 - `kalico-k2pro:k2-pro-openhost` through Moonraker's built-in Klipper updater;
 - `mainsail-k2openhost:develop` (this fork) as a `git_repo` source checkout in `~/mainsail-k2openhost-src`; the local deploy helper builds it and syncs `dist/` into `~/mainsail` (see [`docs/K2_CFS.md`](docs/K2_CFS.md#16-deployment-on-the-cm5));
-- `cartographer3d-plugin-k2openhost` through its dedicated `git_repo` updater.
+- the official Cartographer3D plugin as a Python package (`type: python`, `project_name: cartographer3d-plugin`).
 
 The Kalico checkout must remain clean for normal updates. Third-party local extras should not overwrite tracked K2-OpenHost files; local-only modules may be excluded from Git status when appropriate.
 
-The Cartographer repository documents its supported Moonraker section in:
-
-- `MzTechnology97/cartographer3d-plugin-k2openhost/docs/UPDATE_MANAGER.md`
+The Moonraker section for Cartographer is documented in the [K2-OpenHost Cartographer guide](https://github.com/MzTechnology97/K2-OpenHost/blob/main/docs/en/CARTOGRAPHER.md).
 
 ## Scope of this fork
 
