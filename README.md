@@ -97,6 +97,7 @@ Views with several CFS units use simulated status data; the development printer 
 ### Documentation
 
 - [`docs/K2_CFS.md`](docs/K2_CFS.md): every K2-OpenHost feature, section by section, with step-by-step guides (slot editor, filament library, adding a custom filament, unknown RFID tags), the backend contract, commands, layout rules and validation status.
+- [`docs/K2_MOTORS.md`](docs/K2_MOTORS.md): the read-only Motors panel (X/Y/E temperatures, protection validity, startup readiness, RS-485 and Nozzle transport counters, recent motor events), its states and colours, and the backend keys it reads.
 - [K2-OpenHost Installer Helper](https://github.com/MzTechnology97/k2-openhost-installer-helper): installs this fork, Kalico and Moonraker on an external host.
 - [`K2-OPENHOST.md`](K2-OPENHOST.md): how this fork fits the K2-OpenHost architecture, credits and update/deployment notes.
 

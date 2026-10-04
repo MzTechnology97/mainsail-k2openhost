@@ -49,7 +49,11 @@ function cfsMaterialFamily(material: string): string {
 }
 
 function cfsMaterialFillers(material: string): string {
-    const tokens = (material ?? '').trim().toUpperCase().split(/[^A-Z0-9]+/).slice(1)
+    const tokens = (material ?? '')
+        .trim()
+        .toUpperCase()
+        .split(/[^A-Z0-9]+/)
+        .slice(1)
     return tokens
         .filter((token) => CFS_FILLERS.includes(token))
         .sort()
