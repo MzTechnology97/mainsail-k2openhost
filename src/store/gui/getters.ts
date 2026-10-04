@@ -88,6 +88,10 @@ export const getters: GetterTree<GuiState, RootState> = {
             allPanels = allPanels.filter((name) => name !== 'cfs')
         }
 
+        if (!rootState.printer?.motor_control) {
+            allPanels = allPanels.filter((name) => name !== 'motors')
+        }
+
         if (!rootState.printer?.mmu) {
             allPanels = allPanels.filter((name) => name !== 'mmu')
         }
