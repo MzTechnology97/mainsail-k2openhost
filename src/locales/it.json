@@ -722,6 +722,7 @@
                 "failed_parameters": "falliti",
                 "never": "mai letto",
                 "no_validity": "validità sconosciuta",
+                "none": "nessuno da verificare",
                 "not_ready": "non pronto",
                 "previous_session": "prima del riavvio",
                 "queried": "letto",

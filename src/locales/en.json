@@ -984,6 +984,7 @@
                 "failed_parameters": "failed",
                 "never": "never read",
                 "no_validity": "validity unknown",
+                "none": "none to verify",
                 "not_ready": "not ready",
                 "previous_session": "before restart",
                 "queried": "queried",
