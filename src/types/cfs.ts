@@ -22,6 +22,9 @@ export interface CfsSlot {
     rfid_remaining_m: number | null
     rfid_reserve: string
     external: boolean
+    // Kalico: false while a live RFID tag owns a CFS bay. The external spool
+    // stays clearable: its reader has no removal event.
+    profile_clearable?: boolean
 }
 
 export interface CfsFilament {

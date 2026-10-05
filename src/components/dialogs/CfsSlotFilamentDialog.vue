@@ -138,7 +138,7 @@
 
             <v-divider />
             <v-card-actions class="cfs-sd-actions">
-                <v-btn v-if="cfsSlot && !rfidManaged" text color="error" @click="clearSlot">
+                <v-btn v-if="canResetSlot" text color="error" @click="clearSlot">
                     <v-icon left small>{{ mdiEraser }}</v-icon>
                     Reset slot
                 </v-btn>
@@ -152,7 +152,7 @@
                     Reread RFID
                 </v-btn>
                 <v-btn
-                    v-if="cfsSlot && cfsSlot.external && !rfidManaged"
+                    v-if="cfsSlot && cfsSlot.external"
                     text
                     color="primary"
                     :disabled="printerIsPrinting"
@@ -236,6 +236,14 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
 
     get rfidManaged(): boolean {
         return !!this.cfsSlot && (this.cfsSlot.rfid_active || (this.cfsSlot.present && this.cfsSlot.source === 'rfid'))
+    }
+
+    // An RFID profile on the external spool can be reset: the reader cannot
+    // tell when the tagged spool is replaced by a plain one. Older backends
+    // without profile_clearable keep the previous rule.
+    get canResetSlot(): boolean {
+        if (!this.cfsSlot) return false
+        return this.cfsSlot.profile_clearable ?? !this.rfidManaged
     }
 
     get rfidProfile(): CfsFilament | null {
@@ -442,7 +450,7 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     clearSlot(): void {
-        if (!this.cfsSlot || this.rfidManaged) return
+        if (!this.cfsSlot || !this.canResetSlot) return
         this.send(`_BOX_SLOT_CLEAR SLOT=${this.cfsSlot.index}`)
         this.close()
     }
