@@ -294,27 +294,23 @@
                                     <v-icon small>{{ mdiNfcVariant }}</v-icon>
                                 </v-btn>
                                 <v-btn
-                                    v-else-if="slotRfidManaged(slot) || slot.external"
+                                    v-else-if="slotRfidManaged(slot)"
                                     icon
                                     small
                                     :disabled="printerIsPrinting"
-                                    :title="
-                                        slot.external ? 'External spool / RFID settings' : 'RFID filament information'
-                                    "
-                                    :aria-label="
-                                        slot.external ? 'External spool / RFID settings' : 'RFID filament information'
-                                    "
-                                    @click.stop="openSlotDialog(slot)">
+                                    title="RFID filament information"
+                                    aria-label="RFID filament information"
+                                    @click.stop="openSlotDialog(slot, 'rfid')">
                                     <v-icon small>{{ mdiNfc }}</v-icon>
                                 </v-btn>
                                 <v-btn
-                                    v-else
+                                    v-if="slot.external || (!slot.rfid_unknown_code && !slotRfidManaged(slot))"
                                     icon
                                     small
                                     :disabled="printerIsPrinting"
                                     title="View or edit manual slot filament"
                                     aria-label="Edit slot filament"
-                                    @click.stop="openSlotDialog(slot)">
+                                    @click.stop="openSlotDialog(slot, 'edit')">
                                     <v-icon small>{{ mdiPencil }}</v-icon>
                                 </v-btn>
                                 <v-btn
@@ -507,6 +503,7 @@
             :key="`cfs-slot-dialog-${editingSlot ? editingSlot.index : 'none'}-${slotDialogNonce}`"
             :value="showSlotDialog"
             :cfs-slot="editingSlot"
+            :mode="slotDialogMode"
             :box="box"
             @input="showSlotDialog = $event" />
     </panel>
@@ -672,6 +669,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     showFilamentManager = false
     showSlotDialog = false
     editingSlot: CfsSlot | null = null
+    slotDialogMode: 'auto' | 'edit' | 'rfid' = 'auto'
     slotDialogNonce = 0
     pendingRfidCode = ''
     pendingRfidColor = ''
@@ -1334,11 +1332,12 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.showFilamentManager = true
     }
 
-    openSlotDialog(slot: CfsSlot): void {
+    openSlotDialog(slot: CfsSlot, mode: 'auto' | 'edit' | 'rfid' = 'auto'): void {
         if (this.printerIsPrinting) return
         this.showSlotDialog = false
         this.$nextTick(() => {
             this.editingSlot = { ...slot }
+            this.slotDialogMode = mode
             this.slotDialogNonce += 1
             this.showSlotDialog = true
         })
