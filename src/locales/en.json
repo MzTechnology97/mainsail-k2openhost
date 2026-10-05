@@ -5,6 +5,7 @@
                 "Description": "{name} is outdated and not fully supported. The current version is {version}, but Mainsail requires version {minVersion} or higher.",
                 "Headline": "Outdated Browser"
             },
+            "CfsLowFilament": "CFS: filament may run out",
             "DependencyDescription": "The current {name} version does not support all features of Mainsail. Update {name} to at least {neededVersion}.",
             "DependencyName": "Dependency: {name}",
             "DismissAll": "Dismiss all",

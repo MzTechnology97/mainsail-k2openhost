@@ -5,6 +5,7 @@
                 "Description": "{nome} è obsoleto e non pienamente supportato. La versione corrente è la {versione}, ma Mainsail richiede la versione {minVersion} o superiore.",
                 "Headline": "Browser obsoleto"
             },
+            "CfsLowFilament": "CFS: il filamento potrebbe finire",
             "DependencyDescription": "La versione attuale di {name} non supporta tutte le funzionalità di Mainsail. Aggiorna {name} almeno alla {neededVersion}.",
             "DependencyName": "Dipendenza: {name}",
             "DismissAll": "Annullare tutto",

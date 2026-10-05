@@ -75,6 +75,13 @@ export function cfsNeededMetres(lengthMm: number | null | undefined): number | n
 
 export function cfsMappingWarningText(warning: CfsMappingWarning, slotLabel: string): string {
     const tool = `T${warning.tool}`
+    if (warning.kind === 'low_filament_live') {
+        const swap = warning.includes_swap ? ' including identical spools' : ''
+        const estimated = warning.estimated ? ' (estimated)' : ''
+        return `${tool} still needs about ${(warning.needed_m ?? 0).toFixed(1)} m${estimated}, ${slotLabel} has about ${(
+            warning.remaining_m ?? 0
+        ).toFixed(1)} m left${swap}: load more filament or the print pauses at runout.`
+    }
     if (warning.kind === 'low_filament') {
         const swap = warning.includes_swap ? ' including identical spools' : ''
         return `${tool} needs about ${(warning.needed_m ?? 0).toFixed(1)} m, ${slotLabel} has about ${(
@@ -87,4 +94,35 @@ export function cfsMappingWarningText(warning: CfsMappingWarning, slotLabel: str
         }: check that nozzle and temperatures suit it.`
     }
     return `${tool} (${warning.tool_material || '?'}) uses ${slotLabel} (${warning.slot_material || 'not set'}).`
+}
+
+export interface CfsFilamentNotice {
+    id: string
+    priority: 'normal' | 'high'
+    description: string
+}
+
+/**
+ * Filament warnings of the current print for the notification bell: the
+ * check at print start (low_filament, normal) and the live check during the
+ * print (low_filament_live, high). The id carries the file name, so a later
+ * print shows its own warnings again after one was dismissed.
+ */
+export function cfsFilamentNotices(
+    warnings: CfsMappingWarning[] | undefined,
+    slots: Pick<CfsSlot, 'index' | 'external'>[] | undefined,
+    filename: string | null | undefined
+): CfsFilamentNotice[] {
+    const file = String(filename ?? '').replace(/[^A-Za-z0-9._-]+/g, '_') || 'print'
+    return (warnings ?? [])
+        .filter((warning) => warning.kind === 'low_filament' || warning.kind === 'low_filament_live')
+        .map((warning) => {
+            const slot = (slots ?? []).find((item) => item.index === warning.slot)
+            const label = slot ? cfsSlotLabel(slot) : `slot ${warning.slot + 1}`
+            return {
+                id: `${warning.kind}-T${warning.tool}-S${warning.slot}-${file}`,
+                priority: warning.kind === 'low_filament_live' ? 'high' : 'normal',
+                description: cfsMappingWarningText(warning, label),
+            }
+        })
 }
