@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Store } from 'vuex'
 import { WebSocketClient } from '@/plugins/webSocketClient'
+import type { RootState } from '@/store/types'
 
 class FakeWebSocket {
     static readonly CONNECTING = 0
@@ -48,7 +50,7 @@ const createStore = () =>
                 initializationList: [],
             },
         },
-    }) as any
+    }) as unknown as Store<RootState>
 
 describe('WebSocketClient reconnect handling', () => {
     beforeEach(() => {
