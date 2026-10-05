@@ -16,6 +16,9 @@ export class WebSocketClient {
     store: Store<RootState> | null = null
     waits: Wait[] = []
     heartbeatTimer: number | null = null
+    reconnectTimer: number | null = null
+    manuallyClosed = false
+    heartbeatTimeout = 10000
 
     constructor(options: WebSocketPluginOptions) {
         this.url = options.url
@@ -91,37 +94,91 @@ export class WebSocketClient {
         this.removeWaitById(wait.id)
     }
 
+    clearHeartbeat(): void {
+        if (this.heartbeatTimer !== null) {
+            window.clearTimeout(this.heartbeatTimer)
+            this.heartbeatTimer = null
+        }
+    }
+
+    clearReconnectTimer(): void {
+        if (this.reconnectTimer !== null) {
+            window.clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+        }
+    }
+
+    scheduleReconnect(e?: CloseEvent): void {
+        if (this.manuallyClosed) return
+
+        const retryLimitReached = this.reconnects >= this.maxReconnects
+        if (retryLimitReached) this.store?.dispatch('socket/onClose', e)
+        else this.reconnects++
+
+        // Keep trying in the background after the normal retry budget is
+        // exhausted. This lets Mainsail recover from transient Wi-Fi,
+        // browser throttling, reverse-proxy or Moonraker websocket drops
+        // without requiring a page refresh.
+        const delay = retryLimitReached ? Math.max(this.reconnectInterval, 10000) : this.reconnectInterval
+
+        this.clearReconnectTimer()
+        this.reconnectTimer = window.setTimeout(() => {
+            this.reconnectTimer = null
+            if (!this.manuallyClosed) this.connect()
+        }, delay)
+    }
+
     async connect() {
+        this.manuallyClosed = false
+        this.clearReconnectTimer()
+
         this.store?.dispatch('socket/setData', {
             isConnecting: true,
         })
 
-        this.instance?.close()
-        this.instance = new WebSocket(this.url)
-
-        this.instance.onopen = () => {
-            this.reconnects = 0
-            this.store?.dispatch('socket/onOpen', event)
+        const previous = this.instance
+        if (previous) {
+            previous.onopen = null
+            previous.onclose = null
+            previous.onerror = null
+            previous.onmessage = null
+            previous.close()
         }
 
-        this.instance.onclose = (e) => {
-            if (e.wasClean || this.reconnects >= this.maxReconnects) {
+        const socket = new WebSocket(this.url)
+        this.instance = socket
+
+        socket.onopen = (e) => {
+            if (this.instance !== socket) return
+
+            this.reconnects = 0
+            this.heartbeat()
+            this.store?.dispatch('socket/onOpen', e)
+        }
+
+        socket.onclose = (e) => {
+            if (this.instance !== socket) return
+
+            this.instance = null
+            this.clearHeartbeat()
+
+            if (this.manuallyClosed) {
                 this.store?.dispatch('socket/onClose', e)
                 return
             }
 
-            this.reconnects++
-            setTimeout(() => {
-                this.connect()
-            }, this.reconnectInterval)
+            // A clean close is not necessarily intentional. Moonraker,
+            // proxies, browsers and network stacks can all close a healthy
+            // connection cleanly during a transient interruption.
+            this.scheduleReconnect(e)
         }
 
-        this.instance.onerror = () => {
-            this.instance?.close()
+        socket.onerror = () => {
+            if (this.instance === socket) socket.close()
         }
 
-        this.instance.onmessage = (msg) => {
-            if (this.store === null) return
+        socket.onmessage = (msg) => {
+            if (this.instance !== socket || this.store === null) return
 
             // websocket is alive
             this.heartbeat()
@@ -140,7 +197,15 @@ export class WebSocketClient {
     }
 
     close(): void {
-        this.instance?.close()
+        this.manuallyClosed = true
+        this.clearHeartbeat()
+        this.clearReconnectTimer()
+
+        const socket = this.instance
+        this.instance = null
+        socket?.close()
+
+        this.store?.dispatch('socket/onClose')
     }
 
     getWaitById(id: number): Wait | null {
@@ -240,14 +305,17 @@ export class WebSocketClient {
     }
 
     heartbeat(): void {
-        if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
+        this.clearHeartbeat()
 
         this.heartbeatTimer = window.setTimeout(() => {
-            if (this.instance?.readyState !== WebSocket.OPEN || !this.store) return
+            const socket = this.instance
+            if (socket?.readyState !== WebSocket.OPEN || !this.store) return
 
-            this.close()
-            this.store?.dispatch('socket/onClose')
-        }, 10000)
+            // Let the socket's close handler drive the reconnect path. Calling
+            // close() here would mark the timeout as an intentional shutdown
+            // and leave the UI disconnected until a manual page refresh.
+            socket.close()
+        }, this.heartbeatTimeout)
     }
 }
 
