@@ -218,6 +218,56 @@ const BUS_FIELDS = [
     'disconnects',
 ]
 
+export interface MotorBusSession {
+    result: string | null
+    durationMin: number | null
+    rows: { key: string; value: number; problem: boolean }[]
+}
+
+export interface MotorBusSessionsView {
+    current: MotorBusSession | null
+    last: MotorBusSession | null
+}
+
+const SESSION_FIELDS = [
+    'tx_frames',
+    'rx_frames',
+    'timeouts',
+    'crc_errors',
+    'invalid_len',
+    'unmatched',
+    'send_errors',
+    'reader_errors',
+    'disconnects',
+    'link_lost',
+]
+const SESSION_PROBLEMS = new Set(SESSION_FIELDS.slice(2))
+
+function busSession(entry: Obj): MotorBusSession | null {
+    const deltas = entry?.deltas
+    if (!deltas || typeof deltas !== 'object') return null
+    const duration = Number(entry.duration_s)
+    return {
+        result: typeof entry.result === 'string' ? entry.result : null,
+        durationMin: Number.isFinite(duration) ? Math.floor(duration / 60) : null,
+        rows: SESSION_FIELDS.filter((key) => typeof deltas[key] === 'number').map((key) => ({
+            key,
+            value: deltas[key],
+            problem: SESSION_PROBLEMS.has(key) && deltas[key] > 0,
+        })),
+    }
+}
+
+/** RS-485 counters since the current print started, and for the last one
+ * (kalico-k2pro serial_485 print_session / last_print_session; older
+ * backends publish neither). */
+export function motorBusSessionsView(serial: Obj): MotorBusSessionsView {
+    return {
+        current: busSession(serial?.print_session),
+        last: busSession(serial?.last_print_session),
+    }
+}
+
 /** The shared RS-485 bus: counts for every device on it, not per axis. */
 export function motorBusView(serial: Obj): MotorBusView {
     if (!serial || typeof serial !== 'object' || !('connected' in serial)) {
