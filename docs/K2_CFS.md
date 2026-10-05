@@ -588,7 +588,7 @@ UI preferences such as added brands are Mainsail settings in the Moonraker datab
 | Live web root                                                | `~/mainsail`                              |
 | Build and deploy helper                                      | `~/.local/bin/mainsail-k2openhost-deploy` |
 
-The helper runs `npm ci` when `package-lock.json` changes and builds with the user's Node 22 (`~/.nvm`), because Vite needs Node 20+ and the system Node is 18. It then syncs `dist/` into the web root, keeping `config.json`. It runs from Git hooks after an update and from a once-a-minute cron check, and it refuses to deploy a dirty source tree.
+The helper runs `npm ci` when `package-lock.json` changes and builds with Node 22 from `~/.nvm`, because Vite needs Node 20+ and the system Node is 18. It then syncs `dist/` into the web root, keeping `config.json`. It runs from Git hooks after an update and from a once-a-minute cron check, and it refuses to deploy a dirty source tree.
 
 ## 18. Validation status
 
