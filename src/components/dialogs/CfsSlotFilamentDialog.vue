@@ -57,8 +57,11 @@
 
                     <p class="cfs-sd-note">
                         <v-icon x-small class="mr-1">{{ mdiInformationOutline }}</v-icon>
-                        RFID data is read only and comes from the tag and the filament library. Remove the tagged spool
-                        to assign this slot manually.
+                        RFID data is read only and comes from the tag and the filament library.
+                        <template v-if="cfsSlot.external">
+                            Use the pencil to assign or reset the external spool.
+                        </template>
+                        <template v-else>Remove the tagged spool to assign this slot manually.</template>
                     </p>
                 </template>
 
@@ -202,6 +205,10 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
     @Prop({ type: Object, default: null }) readonly cfsSlot!: CfsSlot | null
+    // auto: RFID view for a tagged slot, editor otherwise. edit/rfid force one
+    // view: the external spool opens the editor from the pencil and the tag
+    // information from the RFID icon, like a CFS slot.
+    @Prop({ type: String, default: 'auto' }) readonly mode!: 'auto' | 'edit' | 'rfid'
 
     mdiClose = mdiClose
     mdiContentSave = mdiContentSave
@@ -234,16 +241,22 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         })
     }
 
-    get rfidManaged(): boolean {
+    get slotHasRfid(): boolean {
         return !!this.cfsSlot && (this.cfsSlot.rfid_active || (this.cfsSlot.present && this.cfsSlot.source === 'rfid'))
     }
 
-    // An RFID profile on the external spool can be reset: the reader cannot
-    // tell when the tagged spool is replaced by a plain one. Older backends
-    // without profile_clearable keep the previous rule.
+    get rfidManaged(): boolean {
+        if (this.mode === 'edit') return false
+        if (this.mode === 'rfid') return true
+        return this.slotHasRfid
+    }
+
+    // Reset belongs to the editor. Kalico's profile_clearable is false while a
+    // live tag owns a CFS slot and always true for the external spool, whose
+    // reader cannot tell when the tagged spool is replaced by a plain one.
     get canResetSlot(): boolean {
-        if (!this.cfsSlot) return false
-        return this.cfsSlot.profile_clearable ?? !this.rfidManaged
+        if (!this.cfsSlot || this.rfidManaged) return false
+        return this.cfsSlot.profile_clearable ?? !this.slotHasRfid
     }
 
     get rfidProfile(): CfsFilament | null {
