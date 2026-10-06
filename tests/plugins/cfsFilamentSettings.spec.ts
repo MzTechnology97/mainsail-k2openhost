@@ -50,8 +50,14 @@ describe('cfsPaCalibrationState', () => {
         expect(cfsPaCalibrationState({ ...ready, print_stats: { state: 'printing' } }).reason).toBe(
             'Not while printing'
         )
-        const busy = { ...ready, k2_load_cell_pa: { ...ready.k2_load_cell_pa, state: 'capturing' } }
+        const busy = { ...ready, k2_load_cell_pa: { ...ready.k2_load_cell_pa, state: 'running' } }
         expect(cfsPaCalibrationState(busy).reason).toBe('A capture is running')
+    })
+    it('is ready again once the last capture has finished', () => {
+        for (const state of ['complete', 'error']) {
+            const done = { ...ready, k2_load_cell_pa: { ...ready.k2_load_cell_pa, state } }
+            expect(cfsPaCalibrationState(done)).toEqual({ available: true, reason: '' })
+        }
     })
 })
 

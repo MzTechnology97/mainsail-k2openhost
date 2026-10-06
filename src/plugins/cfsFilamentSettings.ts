@@ -48,6 +48,9 @@ export interface CfsPaCalibrationState {
 }
 
 /** Can a load cell PA calibration run now? */
+// k2_load_cell_pa ACTIVE_STATES; idle, complete and error leave the button usable.
+const CAPTURE_ACTIVE_STATES = ['starting', 'running', 'stopping']
+
 export function cfsPaCalibrationState(printer: Obj | null | undefined): CfsPaCalibrationState {
     const loadCell = printer?.k2_load_cell_pa
     if (!loadCell) return { available: false, reason: 'No [k2_load_cell_pa] on this printer' }
@@ -57,7 +60,7 @@ export function cfsPaCalibrationState(printer: Obj | null | undefined): CfsPaCal
         return { available: false, reason: 'Set pa_calibration: experimental in [k2_load_cell_pa]' }
     const state = printer?.print_stats?.state
     if (state === 'printing' || state === 'paused') return { available: true, reason: 'Not while printing' }
-    if (loadCell.state && loadCell.state !== 'idle') return { available: true, reason: 'A capture is running' }
+    if (CAPTURE_ACTIVE_STATES.includes(loadCell.state)) return { available: true, reason: 'A capture is running' }
     if (printer?.webhooks?.state && printer.webhooks.state !== 'ready')
         return { available: true, reason: 'Klipper is not ready' }
     return { available: true, reason: '' }
