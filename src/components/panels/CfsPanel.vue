@@ -317,10 +317,10 @@
                                     v-if="!slot.external && slot.present"
                                     icon
                                     small
-                                    :disabled="printerIsPrinting || !box.driver_ready"
+                                    :disabled="printerIsPrinting || !box.driver_ready || slot.loaded"
                                     :loading="loadings.includes(`cfs_rfid_slot_${slot.index}`)"
-                                    title="Reread RFID for this slot"
-                                    aria-label="Reread RFID for this slot"
+                                    :title="rfidRereadTitle(slot)"
+                                    :aria-label="rfidRereadTitle(slot)"
                                     @click.stop="forceRfidRead(slot)">
                                     <v-icon small>{{ mdiRefresh }}</v-icon>
                                 </v-btn>
@@ -1348,8 +1348,16 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.sendCommand('BOX_RFID_SCAN', 'cfs_rfid_scan')
     }
 
+    // The CFS pulls the filament back to read the tag: with the filament
+    // loaded toward the printhead the hub motor stalls (kalico-k2pro #35).
+    rfidRereadTitle(slot: CfsSlot): string {
+        return slot.loaded
+            ? 'Loaded toward the printhead: unload it to reread the RFID tag'
+            : 'Reread RFID for this slot'
+    }
+
     forceRfidRead(slot: CfsSlot): void {
-        if (!this.box.driver_ready || this.printerIsPrinting || slot.external || !slot.present) return
+        if (!this.box.driver_ready || this.printerIsPrinting || slot.external || !slot.present || slot.loaded) return
         this.sendCommand(`_BOX_RFID_READ_SLOT SLOT=${slot.index}`, `cfs_rfid_slot_${slot.index}`)
     }
 

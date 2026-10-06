@@ -149,7 +149,8 @@
                     v-if="cfsSlot && rfidManaged && !cfsSlot.external"
                     text
                     color="primary"
-                    :disabled="printerIsPrinting"
+                    :disabled="printerIsPrinting || cfsSlot.loaded"
+                    :title="cfsSlot.loaded ? 'Loaded toward the printhead: unload it to reread the RFID tag' : ''"
                     @click="rereadRfid">
                     <v-icon left small>{{ mdiRefresh }}</v-icon>
                     Reread RFID
@@ -469,7 +470,14 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     rereadRfid(): void {
-        if (!this.cfsSlot || !this.rfidManaged || this.cfsSlot.external || this.printerIsPrinting) return
+        if (
+            !this.cfsSlot ||
+            !this.rfidManaged ||
+            this.cfsSlot.external ||
+            this.printerIsPrinting ||
+            this.cfsSlot.loaded
+        )
+            return
         this.send(`_BOX_RFID_READ_SLOT SLOT=${this.cfsSlot.index}`)
         this.close()
     }
