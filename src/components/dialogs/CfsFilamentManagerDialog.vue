@@ -547,7 +547,12 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
-        <cfs-pa-calibrate-dialog v-model="showCalibrate" :slot-item="calibrateSlot" :box="box" />
+        <cfs-pa-calibrate-dialog
+            v-model="showCalibrate"
+            :slot-item="calibrateSlot"
+            :box="box"
+            @show-result="showCalibrationResult = true" />
+        <cfs-pa-result-dialog v-model="showCalibrationResult" :box="box" />
     </v-dialog>
 </template>
 
@@ -556,6 +561,7 @@ import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import CfsPaCalibrateDialog from '@/components/cfs/CfsPaCalibrateDialog.vue'
+import CfsPaResultDialog from '@/components/cfs/CfsPaResultDialog.vue'
 import {
     CfsPaCalibrationState,
     cfsOptionalParam,
@@ -614,7 +620,7 @@ interface BrandRow {
 
 type Scope = 'all' | 'custom' | 'system' | 'used'
 
-@Component({ components: { CfsColorPicker, CfsFilamentCard, CfsPaCalibrateDialog } })
+@Component({ components: { CfsColorPicker, CfsFilamentCard, CfsPaCalibrateDialog, CfsPaResultDialog } })
 export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
@@ -655,6 +661,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     deleting: CfsFilament | null = null
     showCalibrate = false
     calibrateSlot: CfsSlot | null = null
+    showCalibrationResult = false
     /** PA and max flow of the profile when the editor opened, to clear removed values. */
     editedValues: { pressure_advance: boolean; max_flow: boolean } = { pressure_advance: false, max_flow: false }
     brandsDialog = false

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
     cfsFilamentSettingsText,
+    cfsPaLastCalibration,
     cfsOptionalParam,
     cfsPaCalibrationPlan,
     cfsPaCalibrationState,
@@ -92,5 +93,35 @@ describe('cfsOptionalParam', () => {
         expect(cfsOptionalParam(0.04, true, 4)).toBe('0.0400')
         expect(cfsOptionalParam(null, true, 4)).toBe('')
         expect(cfsOptionalParam('', false, 4)).toBeNull()
+    })
+})
+
+describe('cfsPaLastCalibration', () => {
+    it('reads the published result', () => {
+        const printer = {
+            k2_load_cell_pa: {
+                last_calibration: {
+                    time: 1759760000,
+                    slot: 0,
+                    filament_id: '90001',
+                    temperature: 250,
+                    flows: [1.25, 1.87, 2.49],
+                    captures: 9,
+                    accepted: 7,
+                    suggested: 0.0412,
+                    indicative: true,
+                    range: [0.026, 0.056],
+                    step: 0.002,
+                    reasons: ['replicates disagree (spread 68%)'],
+                    saved: null,
+                },
+            },
+        }
+        const result = cfsPaLastCalibration(printer)
+        expect(result).toMatchObject({ slot: 0, suggested: 0.0412, indicative: true, range: [0.026, 0.056] })
+    })
+    it('is null before any calibration', () => {
+        expect(cfsPaLastCalibration({ k2_load_cell_pa: { last_calibration: null } })).toBeNull()
+        expect(cfsPaLastCalibration({})).toBeNull()
     })
 })

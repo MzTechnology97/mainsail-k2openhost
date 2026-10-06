@@ -119,3 +119,44 @@ export function cfsOptionalParam(value: unknown, wasSet: boolean, digits: number
     if (cfsValidNumber(value)) return Number(value).toFixed(digits)
     return wasSet ? '' : null
 }
+
+export interface CfsPaCalibrationResult {
+    time: number
+    slot: number | null
+    filamentId: string
+    temperature: number | null
+    flows: number[]
+    captures: number
+    accepted: number
+    suggested: number | null
+    indicative: boolean
+    range: [number, number] | null
+    step: number
+    reasons: string[]
+    saved: string | null
+}
+
+/** The last LOAD_CELL_PA_CALIBRATE result (k2_load_cell_pa last_calibration), or null. */
+export function cfsPaLastCalibration(printer: Obj | null | undefined): CfsPaCalibrationResult | null {
+    const last = printer?.k2_load_cell_pa?.last_calibration
+    if (!last || typeof last !== 'object' || !cfsValidNumber(last.time)) return null
+    const range =
+        Array.isArray(last.range) && last.range.length === 2 && last.range.every(cfsValidNumber)
+            ? ([Number(last.range[0]), Number(last.range[1])] as [number, number])
+            : null
+    return {
+        time: Number(last.time),
+        slot: cfsValidNumber(last.slot) ? Number(last.slot) : null,
+        filamentId: typeof last.filament_id === 'string' ? last.filament_id : '',
+        temperature: cfsValidNumber(last.temperature) ? Number(last.temperature) : null,
+        flows: Array.isArray(last.flows) ? last.flows.filter(cfsValidNumber).map(Number) : [],
+        captures: cfsValidNumber(last.captures) ? Number(last.captures) : 0,
+        accepted: cfsValidNumber(last.accepted) ? Number(last.accepted) : 0,
+        suggested: cfsValidNumber(last.suggested) ? Number(last.suggested) : null,
+        indicative: !!last.indicative,
+        range,
+        step: cfsValidNumber(last.step) ? Number(last.step) : 0.002,
+        reasons: Array.isArray(last.reasons) ? last.reasons.map(String) : [],
+        saved: typeof last.saved === 'string' ? last.saved : null,
+    }
+}

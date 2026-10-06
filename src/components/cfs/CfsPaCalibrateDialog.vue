@@ -30,9 +30,17 @@
                     <li v-if="plan.flows.length">
                         About {{ plan.filamentMm }} mm of filament and {{ plan.minutes }} min after heating.
                     </li>
-                    <li>A valid result is saved in the filament profile and applied; otherwise nothing changes.</li>
+                    <li>
+                        At the end you get a suggested value and an OrcaSlicer PA line test range around it. Print the
+                        test, then save the best value in the profile: nothing is saved automatically.
+                    </li>
                 </ul>
                 <p v-if="currentText" class="text-caption mb-0">Now: {{ currentText }}</p>
+                <p v-if="lastForSlot" class="text-caption mb-0">
+                    Last result for this slot: PA
+                    {{ lastForSlot.suggested !== null ? lastForSlot.suggested.toFixed(4) : '—' }}
+                    <v-btn x-small text color="primary" @click="reviewLast">Review and save</v-btn>
+                </p>
                 <p v-if="state.reason" class="error--text text-caption mt-2 mb-0">{{ state.reason }}</p>
             </v-card-text>
             <v-card-actions>
@@ -54,8 +62,10 @@ import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsSlotLabel } from '@/plugins/cfsLabels'
 import {
     CfsPaCalibrationPlan,
+    CfsPaCalibrationResult,
     CfsPaCalibrationState,
     cfsFilamentSettingsText,
+    cfsPaLastCalibration,
     cfsPaCalibrationPlan,
     cfsPaCalibrationState,
 } from '@/plugins/cfsFilamentSettings'
@@ -91,9 +101,20 @@ export default class CfsPaCalibrateDialog extends Mixins(BaseMixin) {
         return cfsFilamentSettingsText(this.slotItem)
     }
 
+    get lastForSlot(): CfsPaCalibrationResult | null {
+        const last = cfsPaLastCalibration(this.$store.state.printer)
+        return last && this.slotItem && last.slot === this.slotItem.index ? last : null
+    }
+
+    reviewLast(): void {
+        this.showDialog = false
+        this.$emit('show-result')
+    }
+
     start(): void {
         if (!this.slotItem || this.state.reason) return
-        const command = `LOAD_CELL_PA_CALIBRATE SLOT=${this.slotItem.index} SAVE=1`
+        // No SAVE=1: the result is checked with a printed test first.
+        const command = `LOAD_CELL_PA_CALIBRATE SLOT=${this.slotItem.index}`
         this.$store.dispatch('server/addEvent', { message: command, type: 'command' })
         this.$socket.emit('printer.gcode.script', { script: command }, { loading: 'cfs_pa_calibrate' })
         this.showDialog = false

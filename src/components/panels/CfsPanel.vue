@@ -523,12 +523,17 @@
             :mode="slotDialogMode"
             :box="box"
             @input="showSlotDialog = $event" />
-        <cfs-pa-calibrate-dialog v-model="showCalibrate" :slot-item="calibrateSlot" :box="box" />
+        <cfs-pa-calibrate-dialog
+            v-model="showCalibrate"
+            :slot-item="calibrateSlot"
+            :box="box"
+            @show-result="showCalibrationResult = true" />
+        <cfs-pa-result-dialog v-model="showCalibrationResult" :box="box" />
     </panel>
 </template>
 
 <script lang="ts">
-import { Component, Mixins } from 'vue-property-decorator'
+import { Component, Mixins, Watch } from 'vue-property-decorator'
 import {
     mdiAlertCircleOutline,
     mdiArrowCollapseHorizontal,
@@ -561,6 +566,7 @@ import Panel from '@/components/ui/Panel.vue'
 import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDialog.vue'
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
 import CfsPaCalibrateDialog from '@/components/cfs/CfsPaCalibrateDialog.vue'
+import CfsPaResultDialog from '@/components/cfs/CfsPaResultDialog.vue'
 import { CfsPaCalibrationState, cfsFilamentSettingsText, cfsPaCalibrationState } from '@/plugins/cfsFilamentSettings'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
@@ -640,7 +646,9 @@ const EMPTY_BOX: CfsBoxState = {
     driver_ready: false,
 }
 
-@Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog, CfsPaCalibrateDialog } })
+@Component({
+    components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog, CfsPaCalibrateDialog, CfsPaResultDialog },
+})
 export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
     mdiArrowRightThin = mdiArrowRightThin
@@ -693,6 +701,9 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     editingSlot: CfsSlot | null = null
     showCalibrate = false
     calibrateSlot: CfsSlot | null = null
+    showCalibrationResult = false
+    /** Results older than the page are not shown on load. */
+    openedAt = Date.now() / 1000
     slotDialogMode: 'auto' | 'edit' | 'rfid' = 'auto'
     slotDialogNonce = 0
     pendingRfidCode = ''
@@ -1278,6 +1289,16 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             parts.push(`PA ${Number(slot.pressure_advance).toFixed(3)}`)
         if (slot.max_flow !== null && slot.max_flow !== undefined) parts.push(`${Number(slot.max_flow)} mm³/s`)
         return parts.join(' · ')
+    }
+
+    get lastCalibrationTime(): number | null {
+        return this.$store.state.printer?.k2_load_cell_pa?.last_calibration?.time ?? null
+    }
+
+    @Watch('lastCalibrationTime')
+    onCalibrationFinished(time: number | null): void {
+        // A calibration that ends while the page is open shows its result.
+        if (time !== null && time > this.openedAt) this.showCalibrationResult = true
     }
 
     openCalibrate(slot: CfsSlot): void {
