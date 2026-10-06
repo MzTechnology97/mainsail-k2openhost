@@ -307,8 +307,8 @@
                                     v-if="slot.external || (!slot.rfid_unknown_code && !slotRfidManaged(slot))"
                                     icon
                                     small
-                                    :disabled="printerIsPrinting"
-                                    title="View or edit manual slot filament"
+                                    :disabled="slotEditLocked(slot)"
+                                    :title="slotEditTitle(slot)"
                                     aria-label="Edit slot filament"
                                     @click.stop="openSlotDialog(slot, 'edit')">
                                     <v-icon small>{{ mdiPencil }}</v-icon>
@@ -543,6 +543,7 @@ import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDia
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
+import { cfsSlotInvolvedInPrint } from '@/plugins/cfsRunoutAssign'
 
 type CfsSettingKey =
     | 'runout_swap_enabled'
@@ -1332,8 +1333,21 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.showFilamentManager = true
     }
 
+    // During a print only the slots it uses are locked: the Box rebuilds the
+    // runout chain live, so a spool inserted and assigned in another slot
+    // becomes a backup (same material and colour as the loaded slot).
+    slotEditLocked(slot: CfsSlot): boolean {
+        return this.printerIsPrinting && (slot.external || cfsSlotInvolvedInPrint(this.box, slot))
+    }
+
+    slotEditTitle(slot: CfsSlot): string {
+        return this.slotEditLocked(slot)
+            ? 'In use by the current print: editable when it ends'
+            : 'View or edit manual slot filament'
+    }
+
     openSlotDialog(slot: CfsSlot, mode: 'auto' | 'edit' | 'rfid' = 'auto'): void {
-        if (this.printerIsPrinting) return
+        if (this.printerIsPrinting && (mode !== 'edit' || this.slotEditLocked(slot))) return
         this.showSlotDialog = false
         this.$nextTick(() => {
             this.editingSlot = { ...slot }
