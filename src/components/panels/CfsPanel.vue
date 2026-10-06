@@ -264,6 +264,12 @@
                             <div class="cfs-tile-text">
                                 <div class="cfs-tile-material" :title="slotPrimary(slot)">{{ slotPrimary(slot) }}</div>
                                 <div class="cfs-tile-meta" :title="slotSecondary(slot)">{{ slotSecondary(slot) }}</div>
+                                <div
+                                    v-if="slot.present && slotSettingsShort(slot)"
+                                    class="cfs-tile-settings"
+                                    :title="slotTooltip(slot)">
+                                    {{ slotSettingsShort(slot) }}
+                                </div>
                                 <div v-if="slotRemainingText(slot)" class="cfs-tile-remaining">
                                     {{ slotRemainingText(slot) }}
                                 </div>
@@ -1265,6 +1271,15 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         return cfsPaCalibrationState(this.$store.state.printer)
     }
 
+    /** "PA 0.040 · 21 mm³/s": the values a load applies; sources in the tooltip. */
+    slotSettingsShort(slot: CfsSlot): string {
+        const parts: string[] = []
+        if (slot.pressure_advance !== null && slot.pressure_advance !== undefined)
+            parts.push(`PA ${Number(slot.pressure_advance).toFixed(3)}`)
+        if (slot.max_flow !== null && slot.max_flow !== undefined) parts.push(`${Number(slot.max_flow)} mm³/s`)
+        return parts.join(' · ')
+    }
+
     openCalibrate(slot: CfsSlot): void {
         this.calibrateSlot = slot
         this.showCalibrate = true
@@ -1660,6 +1675,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     font-size: 0.76rem;
     line-height: 1.3;
     opacity: 0.75;
+}
+
+.cfs-tile-settings {
+    font-size: 0.7rem;
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cfs-tile-remaining {

@@ -342,34 +342,42 @@
                                 </section>
 
                                 <section class="cfs-editor-section">
+                                    <h3>Pressure advance and max flow</h3>
+                                    <div class="cfs-editor-grid">
+                                        <v-text-field
+                                            v-model.number="form.pressure_advance"
+                                            dense
+                                            outlined
+                                            type="number"
+                                            step="0.001"
+                                            label="Pressure advance"
+                                            hint="Applied when a slot with this filament is loaded"
+                                            persistent-hint
+                                            :rules="[rules.pressureAdvance]" />
+                                        <v-text-field
+                                            v-model.number="form.max_flow"
+                                            dense
+                                            outlined
+                                            type="number"
+                                            step="0.5"
+                                            label="Max flow (mm³/s)"
+                                            hint="OrcaSlicer: max volumetric speed"
+                                            persistent-hint
+                                            :rules="[rules.maxFlow]" />
+                                    </div>
+                                </section>
+
+                                <section class="cfs-editor-section">
                                     <cfs-color-picker v-model="form.color" label="Default colour for manual slots" />
                                 </section>
 
                                 <v-expansion-panels flat class="cfs-editor-advanced">
                                     <v-expansion-panel>
                                         <v-expansion-panel-header>
-                                            Advanced: pressure advance, max flow, RFID code, Spoolman
+                                            Advanced: RFID code, Spoolman
                                         </v-expansion-panel-header>
                                         <v-expansion-panel-content>
                                             <div class="cfs-editor-grid">
-                                                <v-text-field
-                                                    v-model.number="form.pressure_advance"
-                                                    dense
-                                                    outlined
-                                                    type="number"
-                                                    step="0.001"
-                                                    label="Pressure advance"
-                                                    :rules="[rules.pressureAdvance]" />
-                                                <v-text-field
-                                                    v-model.number="form.max_flow"
-                                                    dense
-                                                    outlined
-                                                    type="number"
-                                                    step="0.5"
-                                                    label="Max flow (mm³/s)"
-                                                    hint="OrcaSlicer: max volumetric speed"
-                                                    persistent-hint
-                                                    :rules="[rules.maxFlow]" />
                                                 <v-text-field
                                                     v-model.trim="form.rfid_code"
                                                     dense
