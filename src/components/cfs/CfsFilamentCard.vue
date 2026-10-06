@@ -36,6 +36,9 @@
         <div v-if="showFoot" class="cfs-fcard-foot">
             <span v-if="filament.id" class="cfs-fcard-id">{{ filament.id }}</span>
             <span v-if="validNumber(filament.pressure_advance)">PA {{ filament.pressure_advance }}</span>
+            <span v-if="validNumber(filament.max_flow)" title="Maximum volumetric flow">
+                max {{ filament.max_flow }} mm³/s
+            </span>
             <span v-if="validNumber(filament.spoolman_id)">Spoolman #{{ filament.spoolman_id }}</span>
             <v-spacer />
             <slot name="foot" />
@@ -56,6 +59,7 @@ export interface CfsFilamentCardData {
     min_temp?: number | null
     max_temp?: number | null
     pressure_advance?: number | null
+    max_flow?: number | null
     spoolman_id?: number | null
 }
 

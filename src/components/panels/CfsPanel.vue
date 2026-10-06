@@ -314,6 +314,17 @@
                                     <v-icon small>{{ mdiPencil }}</v-icon>
                                 </v-btn>
                                 <v-btn
+                                    v-if="calibration.available && slot.present && !slot.external"
+                                    icon
+                                    small
+                                    :disabled="!!calibration.reason || !box.driver_ready"
+                                    :loading="loadings.includes('cfs_pa_calibrate') && slot.loaded"
+                                    :title="calibration.reason || `Calibrate pressure advance for ${slotLabel(slot)}`"
+                                    :aria-label="`Calibrate pressure advance for ${slotLabel(slot)}`"
+                                    @click.stop="openCalibrate(slot)">
+                                    <v-icon small>{{ mdiChartBellCurveCumulative }}</v-icon>
+                                </v-btn>
+                                <v-btn
                                     v-if="!slot.external && slot.present"
                                     icon
                                     small
@@ -506,6 +517,7 @@
             :mode="slotDialogMode"
             :box="box"
             @input="showSlotDialog = $event" />
+        <cfs-pa-calibrate-dialog v-model="showCalibrate" :slot-item="calibrateSlot" :box="box" />
     </panel>
 </template>
 
@@ -517,6 +529,7 @@ import {
     mdiArrowDown,
     mdiArrowRightThin,
     mdiArrowUp,
+    mdiChartBellCurveCumulative,
     mdiCheckCircle,
     mdiCog,
     mdiContentSave,
@@ -541,6 +554,8 @@ import BaseMixin from '@/components/mixins/base'
 import Panel from '@/components/ui/Panel.vue'
 import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDialog.vue'
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
+import CfsPaCalibrateDialog from '@/components/cfs/CfsPaCalibrateDialog.vue'
+import { CfsPaCalibrationState, cfsFilamentSettingsText, cfsPaCalibrationState } from '@/plugins/cfsFilamentSettings'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 
@@ -619,7 +634,7 @@ const EMPTY_BOX: CfsBoxState = {
     driver_ready: false,
 }
 
-@Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog } })
+@Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog, CfsPaCalibrateDialog } })
 export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
     mdiArrowRightThin = mdiArrowRightThin
@@ -633,6 +648,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiCog = mdiCog
     mdiDatabase = mdiDatabase
     mdiEject = mdiEject
+    mdiChartBellCurveCumulative = mdiChartBellCurveCumulative
     mdiNfc = mdiNfc
     mdiNfcSearchVariant = mdiNfcSearchVariant
     mdiNfcVariant = mdiNfcVariant
@@ -669,6 +685,8 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     showFilamentManager = false
     showSlotDialog = false
     editingSlot: CfsSlot | null = null
+    showCalibrate = false
+    calibrateSlot: CfsSlot | null = null
     slotDialogMode: 'auto' | 'edit' | 'rfid' = 'auto'
     slotDialogNonce = 0
     pendingRfidCode = ''
@@ -1238,7 +1256,18 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         const brand = (slot.brand ?? '').trim()
         let text = name || slot.material || ''
         if (name && brand && !name.toLocaleLowerCase().includes(brand.toLocaleLowerCase())) text = `${name} · ${brand}`
-        return text ? `${this.slotLabel(slot)} · ${text}` : this.slotLabel(slot)
+        const label = text ? `${this.slotLabel(slot)} · ${text}` : this.slotLabel(slot)
+        const settings = slot.present ? cfsFilamentSettingsText(slot) : ''
+        return settings ? `${label} — ${settings}` : label
+    }
+
+    get calibration(): CfsPaCalibrationState {
+        return cfsPaCalibrationState(this.$store.state.printer)
+    }
+
+    openCalibrate(slot: CfsSlot): void {
+        this.calibrateSlot = slot
+        this.showCalibrate = true
     }
 
     slotColor(slot: CfsSlot): string {
