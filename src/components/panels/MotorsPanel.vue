@@ -86,6 +86,18 @@
                             <span>{{ item.key }}</span>
                             <span>{{ item.value }}</span>
                         </div>
+                        <template v-for="block in busSessionBlocks">
+                            <div :key="block.id + '-title'" class="text-caption font-weight-bold mt-2">
+                                {{ block.title }}
+                            </div>
+                            <div
+                                v-for="item in block.session.rows"
+                                :key="block.id + item.key"
+                                :class="['motors-counter', { 'warning--text': item.problem }]">
+                                <span>{{ item.key }}</span>
+                                <span>{{ item.value }}</span>
+                            </div>
+                        </template>
                     </v-expansion-panel-content>
                 </v-expansion-panel>
                 <v-expansion-panel>
@@ -146,8 +158,10 @@ import BaseMixin from '@/components/mixins/base'
 import Panel from '@/components/ui/Panel.vue'
 import {
     MOTOR_AXES,
+    MotorBusSession,
     MotorProtectionView,
     MotorTone,
+    motorBusSessionsView,
     motorBusView,
     motorEventsView,
     motorNozzleView,
@@ -196,6 +210,37 @@ export default class MotorsPanel extends Mixins(BaseMixin) {
 
     get bus() {
         return motorBusView(this.$store.state.printer['serial_485 serial485'])
+    }
+
+    /** RS-485 counters for the running print and the last finished one. */
+    get busSessionBlocks(): { id: string; title: string; session: MotorBusSession }[] {
+        const view = motorBusSessionsView(this.$store.state.printer['serial_485 serial485'])
+        const blocks: { id: string; title: string; session: MotorBusSession }[] = []
+        if (view.current) {
+            blocks.push({
+                id: 'current',
+                title: this.$t('Panels.MotorsPanel.PrintCounters', {
+                    duration: this.durationText(view.current.durationMin),
+                }).toString(),
+                session: view.current,
+            })
+        }
+        if (view.last) {
+            blocks.push({
+                id: 'last',
+                title: this.$t('Panels.MotorsPanel.LastPrintCounters', {
+                    result: view.last.result ?? '?',
+                    duration: this.durationText(view.last.durationMin),
+                }).toString(),
+                session: view.last,
+            })
+        }
+        return blocks
+    }
+
+    durationText(minutes: number | null): string {
+        if (minutes === null) return '?'
+        return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`
     }
 
     get busChip(): string {

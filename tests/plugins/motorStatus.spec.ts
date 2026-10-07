@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+    motorBusSessionsView,
     motorBusView,
     motorEventsView,
     motorNozzleView,
@@ -194,6 +195,41 @@ describe('bus, nozzle and events', () => {
         expect(view.connected).toBe(true)
         expect(view.rows.map((r) => r.key)).toEqual(['tx_frames', 'rx_frames', 'timeouts', 'crc_errors'])
         expect(motorBusView(undefined).available).toBe(false)
+    })
+
+    it('reads the per-print RS-485 counters and flags problems', () => {
+        const view = motorBusSessionsView({
+            connected: true,
+            print_session: {
+                started: 1,
+                duration_s: 3725,
+                deltas: { tx_frames: 900, rx_frames: 897, timeouts: 3, crc_errors: 0, link_lost: 0 },
+            },
+            last_print_session: {
+                result: 'complete',
+                duration_s: 67500,
+                deltas: { tx_frames: 50000, rx_frames: 50000, timeouts: 0 },
+            },
+        })
+        expect(view.current?.durationMin).toBe(62)
+        expect(view.current?.rows.map((r) => r.key)).toEqual([
+            'tx_frames',
+            'rx_frames',
+            'timeouts',
+            'crc_errors',
+            'link_lost',
+        ])
+        expect(view.current?.rows.find((r) => r.key === 'timeouts')?.problem).toBe(true)
+        expect(view.current?.rows.find((r) => r.key === 'crc_errors')?.problem).toBe(false)
+        expect(view.current?.rows.find((r) => r.key === 'tx_frames')?.problem).toBe(false)
+        expect(view.last?.result).toBe('complete')
+        expect(view.last?.durationMin).toBe(1125)
+    })
+
+    it('shows no per-print counters on older backends or when idle', () => {
+        expect(motorBusSessionsView({ connected: true, tx_frames: 1 })).toEqual({ current: null, last: null })
+        expect(motorBusSessionsView({ connected: true, print_session: null })).toEqual({ current: null, last: null })
+        expect(motorBusSessionsView(undefined)).toEqual({ current: null, last: null })
     })
 
     it('reads the nozzle transport counters', () => {
