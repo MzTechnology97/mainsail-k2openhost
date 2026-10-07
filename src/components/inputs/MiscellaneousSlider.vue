@@ -116,9 +116,11 @@ export default class MiscellaneousSlider extends Mixins(BaseMixin) {
 
     convertName = convertName
 
-    // [fan] is the part cooling fan; its object name alone reads as "Fan".
+    // K2 part cooling fans: [fan] on the toolhead, [fan_generic aux_fans]
+    // on the side. Their object names alone read as "Fan" and "Aux Fans".
     get displayName(): string {
-        if (this.type === 'fan') return 'Part Fan'
+        if (this.type === 'fan') return 'Toolhead Part Fan'
+        if (this.type === 'fan_generic' && this.name === 'aux_fans') return 'Side Part Fan'
         return convertName(this.name)
     }
     declare private timeout: ReturnType<typeof setTimeout>
