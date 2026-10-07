@@ -58,7 +58,7 @@
                         <v-divider />
                     </template>
                     <v-list-item
-                        v-for="setting in settingItems"
+                        v-for="setting in visibleSettingItems"
                         :key="setting.key"
                         :disabled="readOnlyMode"
                         @click="toggleSetting(setting.command, setting.key)">
@@ -307,8 +307,8 @@
                                     v-if="slot.external || (!slot.rfid_unknown_code && !slotRfidManaged(slot))"
                                     icon
                                     small
-                                    :disabled="printerIsPrinting"
-                                    title="View or edit manual slot filament"
+                                    :disabled="slotEditLocked(slot)"
+                                    :title="slotEditTitle(slot)"
                                     aria-label="Edit slot filament"
                                     @click.stop="openSlotDialog(slot, 'edit')">
                                     <v-icon small>{{ mdiPencil }}</v-icon>
@@ -317,10 +317,10 @@
                                     v-if="!slot.external && slot.present"
                                     icon
                                     small
-                                    :disabled="printerIsPrinting || !box.driver_ready"
+                                    :disabled="printerIsPrinting || !box.driver_ready || slot.loaded"
                                     :loading="loadings.includes(`cfs_rfid_slot_${slot.index}`)"
-                                    title="Reread RFID for this slot"
-                                    aria-label="Reread RFID for this slot"
+                                    :title="rfidRereadTitle(slot)"
+                                    :aria-label="rfidRereadTitle(slot)"
                                     @click.stop="forceRfidRead(slot)">
                                     <v-icon small>{{ mdiRefresh }}</v-icon>
                                 </v-btn>
@@ -527,6 +527,7 @@ import {
     mdiNfcVariant,
     mdiPackageVariantClosed,
     mdiPencil,
+    mdiPipeDisconnected,
     mdiPlay,
     mdiPrinter3dNozzle,
     mdiRefresh,
@@ -543,12 +544,14 @@ import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDia
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
+import { cfsSlotInvolvedInPrint } from '@/plugins/cfsRunoutAssign'
 
 type CfsSettingKey =
     | 'runout_swap_enabled'
     | 'unload_after_print_enabled'
     | 'rfid_insert_reading_enabled'
     | 'rfid_startup_reading_enabled'
+    | 'clog_detection_enabled'
 
 interface CfsSection {
     key: string
@@ -664,7 +667,18 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             label: 'Read RFID at startup',
             icon: mdiNfcVariant,
         },
+        {
+            key: 'clog_detection_enabled',
+            command: '_BOX_SET_CLOG_DETECTION',
+            label: 'Clog detection',
+            icon: mdiPipeDisconnected,
+        },
     ]
+
+    // Settings the running backend reports; older ones lack clog detection.
+    get visibleSettingItems() {
+        return this.settingItems.filter((setting) => setting.key in this.box)
+    }
 
     showFilamentManager = false
     showSlotDialog = false
@@ -1332,8 +1346,21 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.showFilamentManager = true
     }
 
+    // During a print only the slots it uses are locked: the Box rebuilds the
+    // runout chain live, so a spool inserted and assigned in another slot
+    // becomes a backup (same material and colour as the loaded slot).
+    slotEditLocked(slot: CfsSlot): boolean {
+        return this.printerIsPrinting && (slot.external || cfsSlotInvolvedInPrint(this.box, slot))
+    }
+
+    slotEditTitle(slot: CfsSlot): string {
+        return this.slotEditLocked(slot)
+            ? 'In use by the current print: editable when it ends'
+            : 'View or edit manual slot filament'
+    }
+
     openSlotDialog(slot: CfsSlot, mode: 'auto' | 'edit' | 'rfid' = 'auto'): void {
-        if (this.printerIsPrinting) return
+        if (this.printerIsPrinting && (mode !== 'edit' || this.slotEditLocked(slot))) return
         this.showSlotDialog = false
         this.$nextTick(() => {
             this.editingSlot = { ...slot }
@@ -1348,8 +1375,16 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         this.sendCommand('BOX_RFID_SCAN', 'cfs_rfid_scan')
     }
 
+    // The CFS pulls the filament back to read the tag: with the filament
+    // loaded toward the printhead the hub motor stalls (kalico-k2pro #35).
+    rfidRereadTitle(slot: CfsSlot): string {
+        return slot.loaded
+            ? 'Loaded toward the printhead: unload it to reread the RFID tag'
+            : 'Reread RFID for this slot'
+    }
+
     forceRfidRead(slot: CfsSlot): void {
-        if (!this.box.driver_ready || this.printerIsPrinting || slot.external || !slot.present) return
+        if (!this.box.driver_ready || this.printerIsPrinting || slot.external || !slot.present || slot.loaded) return
         this.sendCommand(`_BOX_RFID_READ_SLOT SLOT=${slot.index}`, `cfs_rfid_slot_${slot.index}`)
     }
 

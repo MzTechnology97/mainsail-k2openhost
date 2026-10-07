@@ -224,6 +224,8 @@ export interface CfsBoxState {
     unload_after_print_enabled: boolean
     rfid_insert_reading_enabled: boolean
     rfid_startup_reading_enabled: boolean
+    /** Clog check on (saved by the CFS); absent on older backends. */
+    clog_detection_enabled?: boolean
     tracking_active: boolean
     filament_detected: boolean
     filament_sensor_error: string | null
