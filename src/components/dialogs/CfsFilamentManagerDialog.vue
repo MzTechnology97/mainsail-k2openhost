@@ -106,6 +106,20 @@
                                             </v-list-item-title>
                                         </v-list-item>
                                         <v-list-item
+                                            v-if="calibration.available"
+                                            :disabled="!!calibrationBlock(filament)"
+                                            @click="calibrate(filament)">
+                                            <v-list-item-icon>
+                                                <v-icon small>{{ mdiChartBellCurveCumulative }}</v-icon>
+                                            </v-list-item-icon>
+                                            <v-list-item-content>
+                                                <v-list-item-title>Calibrate PA</v-list-item-title>
+                                                <v-list-item-subtitle v-if="calibrationBlock(filament)">
+                                                    {{ calibrationBlock(filament) }}
+                                                </v-list-item-subtitle>
+                                            </v-list-item-content>
+                                        </v-list-item>
+                                        <v-list-item
                                             v-if="!filament.system"
                                             :disabled="readOnly"
                                             @click="edit(filament)">
@@ -328,24 +342,42 @@
                                 </section>
 
                                 <section class="cfs-editor-section">
+                                    <h3>Pressure advance and max flow</h3>
+                                    <div class="cfs-editor-grid">
+                                        <v-text-field
+                                            v-model.number="form.pressure_advance"
+                                            dense
+                                            outlined
+                                            type="number"
+                                            step="0.001"
+                                            label="Pressure advance"
+                                            hint="Applied when a slot with this filament is loaded"
+                                            persistent-hint
+                                            :rules="[rules.pressureAdvance]" />
+                                        <v-text-field
+                                            v-model.number="form.max_flow"
+                                            dense
+                                            outlined
+                                            type="number"
+                                            step="0.5"
+                                            label="Max flow (mm³/s)"
+                                            hint="OrcaSlicer: max volumetric speed"
+                                            persistent-hint
+                                            :rules="[rules.maxFlow]" />
+                                    </div>
+                                </section>
+
+                                <section class="cfs-editor-section">
                                     <cfs-color-picker v-model="form.color" label="Default colour for manual slots" />
                                 </section>
 
                                 <v-expansion-panels flat class="cfs-editor-advanced">
                                     <v-expansion-panel>
                                         <v-expansion-panel-header>
-                                            Advanced: pressure advance, RFID code, Spoolman
+                                            Advanced: RFID code, Spoolman
                                         </v-expansion-panel-header>
                                         <v-expansion-panel-content>
                                             <div class="cfs-editor-grid">
-                                                <v-text-field
-                                                    v-model.number="form.pressure_advance"
-                                                    dense
-                                                    outlined
-                                                    type="number"
-                                                    step="0.001"
-                                                    label="Pressure advance"
-                                                    :rules="[rules.pressureAdvance]" />
                                                 <v-text-field
                                                     v-model.trim="form.rfid_code"
                                                     dense
@@ -515,6 +547,12 @@
                 </v-card-actions>
             </v-card>
         </v-dialog>
+        <cfs-pa-calibrate-dialog
+            v-model="showCalibrate"
+            :slot-item="calibrateSlot"
+            :box="box"
+            @show-result="showCalibrationResult = true" />
+        <cfs-pa-result-dialog v-model="showCalibrationResult" :box="box" />
     </v-dialog>
 </template>
 
@@ -522,8 +560,16 @@
 import { Component, Mixins, Prop, VModel, Watch } from 'vue-property-decorator'
 import BaseMixin from '@/components/mixins/base'
 import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
+import CfsPaCalibrateDialog from '@/components/cfs/CfsPaCalibrateDialog.vue'
+import CfsPaResultDialog from '@/components/cfs/CfsPaResultDialog.vue'
+import {
+    CfsPaCalibrationState,
+    cfsOptionalParam,
+    cfsPaCalibrationState,
+    cfsSlotForFilament,
+} from '@/plugins/cfsFilamentSettings'
 import CfsFilamentCard, { CfsFilamentCardBadge } from '@/components/cfs/CfsFilamentCard.vue'
-import { CfsBoxState, CfsFilament, CfsFilamentLibrary } from '@/types/cfs'
+import { CfsBoxState, CfsFilament, CfsFilamentLibrary, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsFilamentSource, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 import {
     mdiArrowLeft,
@@ -534,6 +580,7 @@ import {
     mdiDatabase,
     mdiDatabaseSearch,
     mdiDelete,
+    mdiChartBellCurveCumulative,
     mdiDotsVertical,
     mdiInformationOutline,
     mdiLockOutline,
@@ -556,6 +603,7 @@ interface FilamentForm {
     min_temp: number | null
     max_temp: number | null
     pressure_advance: number | null
+    max_flow: number | null
     rfid_code: string
     spoolman_id: number | null
 }
@@ -572,7 +620,7 @@ interface BrandRow {
 
 type Scope = 'all' | 'custom' | 'system' | 'used'
 
-@Component({ components: { CfsColorPicker, CfsFilamentCard } })
+@Component({ components: { CfsColorPicker, CfsFilamentCard, CfsPaCalibrateDialog, CfsPaResultDialog } })
 export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
@@ -588,6 +636,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     mdiDatabase = mdiDatabase
     mdiDatabaseSearch = mdiDatabaseSearch
     mdiDelete = mdiDelete
+    mdiChartBellCurveCumulative = mdiChartBellCurveCumulative
     mdiDotsVertical = mdiDotsVertical
     mdiInformationOutline = mdiInformationOutline
     mdiLockOutline = mdiLockOutline
@@ -610,6 +659,11 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     form: FilamentForm = this.blank()
     confirmDelete = false
     deleting: CfsFilament | null = null
+    showCalibrate = false
+    calibrateSlot: CfsSlot | null = null
+    showCalibrationResult = false
+    /** PA and max flow of the profile when the editor opened, to clear removed values. */
+    editedValues: { pressure_advance: boolean; max_flow: boolean } = { pressure_advance: false, max_flow: false }
     brandsDialog = false
     newBrand = ''
     confirmBrandDelete = false
@@ -846,6 +900,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             min_temp: this.validNumber(this.form.min_temp) ? Number(this.form.min_temp) : null,
             max_temp: this.validNumber(this.form.max_temp) ? Number(this.form.max_temp) : null,
             pressure_advance: this.validNumber(this.form.pressure_advance) ? Number(this.form.pressure_advance) : null,
+            max_flow: this.validNumber(this.form.max_flow) ? Number(this.form.max_flow) : null,
             rfid_code: this.form.rfid_code,
             spoolman_id: this.validNumber(this.form.spoolman_id) ? Number(this.form.spoolman_id) : null,
             system: false,
@@ -889,6 +944,11 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             },
             pressureAdvance: (value: unknown) =>
                 value === null || value === '' || (Number(value) >= 0 && Number(value) <= 2) || 'Between 0 and 2',
+            maxFlow: (value: unknown) =>
+                value === null ||
+                value === '' ||
+                (Number(value) >= 0.1 && Number(value) <= 200) ||
+                'Between 0.1 and 200 mm³/s',
         }
     }
 
@@ -906,6 +966,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             rules.rangeOrder(),
             rules.targetInRange(),
             rules.pressureAdvance(this.form.pressure_advance),
+            rules.maxFlow(this.form.max_flow),
         ]
         return checks.every((check) => check === true)
     }
@@ -1059,6 +1120,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             min_temp: null,
             max_temp: null,
             pressure_advance: null,
+            max_flow: null,
             rfid_code: '',
             spoolman_id: null,
         }
@@ -1095,12 +1157,17 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             min_temp: filament.min_temp ?? null,
             max_temp: filament.max_temp ?? null,
             pressure_advance: filament.pressure_advance ?? null,
+            max_flow: filament.max_flow ?? null,
             rfid_code: filament.rfid_code ?? '',
             spoolman_id: filament.spoolman_id ?? null,
         }
     }
 
     openEditor(form: FilamentForm, existing: boolean): void {
+        this.editedValues = {
+            pressure_advance: existing && this.validNumber(form.pressure_advance),
+            max_flow: existing && this.validNumber(form.max_flow),
+        }
         this.form = form
         this.presetId = null
         this.editingExisting = existing
@@ -1172,9 +1239,11 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         ]
         if (this.validNumber(this.form.min_temp)) parts.push(`MIN_TEMP=${Math.round(Number(this.form.min_temp))}`)
         if (this.validNumber(this.form.max_temp)) parts.push(`MAX_TEMP=${Math.round(Number(this.form.max_temp))}`)
-        if (this.validNumber(this.form.pressure_advance)) {
-            parts.push(`PRESSURE_ADVANCE=${Number(this.form.pressure_advance).toFixed(4)}`)
-        }
+        // An emptied field clears the saved value; an unset one is left out.
+        const pressureAdvance = cfsOptionalParam(this.form.pressure_advance, this.editedValues.pressure_advance, 4)
+        if (pressureAdvance !== null) parts.push(`PRESSURE_ADVANCE=${pressureAdvance}`)
+        const maxFlow = cfsOptionalParam(this.form.max_flow, this.editedValues.max_flow, 2)
+        if (maxFlow !== null) parts.push(`MAX_FLOW=${maxFlow}`)
         if (this.validNumber(this.form.spoolman_id)) {
             parts.push(`SPOOLMAN_ID=${Math.round(Number(this.form.spoolman_id))}`)
         }
@@ -1185,6 +1254,23 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     assign(filament: CfsFilament, slot: number): void {
         if (this.readOnly) return
         this.send(`_BOX_SLOT_ASSIGN SLOT=${slot} FILAMENT_ID=${this.q(filament.id)}`)
+    }
+
+    get calibration(): CfsPaCalibrationState {
+        return cfsPaCalibrationState(this.$store.state.printer)
+    }
+
+    /** Why a profile cannot be calibrated now, '' when it can. */
+    calibrationBlock(filament: CfsFilament): string {
+        if (this.calibration.reason) return this.calibration.reason
+        return cfsSlotForFilament(this.box.slots, filament.id) ? '' : 'Put this filament in a CFS slot first'
+    }
+
+    calibrate(filament: CfsFilament): void {
+        const slot = cfsSlotForFilament(this.box.slots, filament.id) as CfsSlot | null
+        if (!slot || this.calibrationBlock(filament)) return
+        this.calibrateSlot = slot
+        this.showCalibrate = true
     }
 
     askDelete(filament: CfsFilament): void {

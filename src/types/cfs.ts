@@ -7,7 +7,12 @@ export interface CfsSlot {
     brand: string
     name: string
     target_temp: number | null
+    /** Effective value: slot profile, then library filament, then material (box/filament-pa-maxflow). */
     pressure_advance: number | null
+    pressure_advance_source?: string | null
+    /** Maximum volumetric flow in mm³/s, with the OrcaSlicer generic value as last fallback. */
+    max_flow?: number | null
+    max_flow_source?: string | null
     spoolman_id: number | null
     filament_id: string
     source: string
@@ -37,6 +42,8 @@ export interface CfsFilament {
     min_temp: number | null
     max_temp: number | null
     pressure_advance: number | null
+    /** Maximum volumetric flow in mm³/s. */
+    max_flow?: number | null
     rfid_code: string
     rfid_codes?: string[]
     aliases?: string[]

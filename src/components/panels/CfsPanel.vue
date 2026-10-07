@@ -264,6 +264,12 @@
                             <div class="cfs-tile-text">
                                 <div class="cfs-tile-material" :title="slotPrimary(slot)">{{ slotPrimary(slot) }}</div>
                                 <div class="cfs-tile-meta" :title="slotSecondary(slot)">{{ slotSecondary(slot) }}</div>
+                                <div
+                                    v-if="slot.present && slotSettingsShort(slot)"
+                                    class="cfs-tile-settings"
+                                    :title="slotTooltip(slot)">
+                                    {{ slotSettingsShort(slot) }}
+                                </div>
                                 <div v-if="slotRemainingText(slot)" class="cfs-tile-remaining">
                                     {{ slotRemainingText(slot) }}
                                 </div>
@@ -312,6 +318,17 @@
                                     aria-label="Edit slot filament"
                                     @click.stop="openSlotDialog(slot, 'edit')">
                                     <v-icon small>{{ mdiPencil }}</v-icon>
+                                </v-btn>
+                                <v-btn
+                                    v-if="calibration.available && slot.present && !slot.external"
+                                    icon
+                                    small
+                                    :disabled="!!calibration.reason || !box.driver_ready"
+                                    :loading="loadings.includes('cfs_pa_calibrate') && slot.loaded"
+                                    :title="calibration.reason || `Calibrate pressure advance for ${slotLabel(slot)}`"
+                                    :aria-label="`Calibrate pressure advance for ${slotLabel(slot)}`"
+                                    @click.stop="openCalibrate(slot)">
+                                    <v-icon small>{{ mdiChartBellCurveCumulative }}</v-icon>
                                 </v-btn>
                                 <v-btn
                                     v-if="!slot.external && slot.present"
@@ -506,17 +523,24 @@
             :mode="slotDialogMode"
             :box="box"
             @input="showSlotDialog = $event" />
+        <cfs-pa-calibrate-dialog
+            v-model="showCalibrate"
+            :slot-item="calibrateSlot"
+            :box="box"
+            @show-result="showCalibrationResult = true" />
+        <cfs-pa-result-dialog v-model="showCalibrationResult" :box="box" />
     </panel>
 </template>
 
 <script lang="ts">
-import { Component, Mixins } from 'vue-property-decorator'
+import { Component, Mixins, Watch } from 'vue-property-decorator'
 import {
     mdiAlertCircleOutline,
     mdiArrowCollapseHorizontal,
     mdiArrowDown,
     mdiArrowRightThin,
     mdiArrowUp,
+    mdiChartBellCurveCumulative,
     mdiCheckCircle,
     mdiCog,
     mdiContentSave,
@@ -542,6 +566,9 @@ import BaseMixin from '@/components/mixins/base'
 import Panel from '@/components/ui/Panel.vue'
 import CfsFilamentManagerDialog from '@/components/dialogs/CfsFilamentManagerDialog.vue'
 import CfsSlotFilamentDialog from '@/components/dialogs/CfsSlotFilamentDialog.vue'
+import CfsPaCalibrateDialog from '@/components/cfs/CfsPaCalibrateDialog.vue'
+import CfsPaResultDialog from '@/components/cfs/CfsPaResultDialog.vue'
+import { CfsPaCalibrationState, cfsFilamentSettingsText, cfsPaCalibrationState } from '@/plugins/cfsFilamentSettings'
 import { CfsBoxState, CfsSlot } from '@/types/cfs'
 import { cfsBoxNumber, cfsLocalSlot, cfsMappingWarningText, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 import { cfsSlotInvolvedInPrint } from '@/plugins/cfsRunoutAssign'
@@ -622,7 +649,9 @@ const EMPTY_BOX: CfsBoxState = {
     driver_ready: false,
 }
 
-@Component({ components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog } })
+@Component({
+    components: { Panel, CfsFilamentManagerDialog, CfsSlotFilamentDialog, CfsPaCalibrateDialog, CfsPaResultDialog },
+})
 export default class CfsPanel extends Mixins(BaseMixin) {
     mdiAlertCircleOutline = mdiAlertCircleOutline
     mdiArrowRightThin = mdiArrowRightThin
@@ -636,6 +665,7 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     mdiCog = mdiCog
     mdiDatabase = mdiDatabase
     mdiEject = mdiEject
+    mdiChartBellCurveCumulative = mdiChartBellCurveCumulative
     mdiNfc = mdiNfc
     mdiNfcSearchVariant = mdiNfcSearchVariant
     mdiNfcVariant = mdiNfcVariant
@@ -683,6 +713,11 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     showFilamentManager = false
     showSlotDialog = false
     editingSlot: CfsSlot | null = null
+    showCalibrate = false
+    calibrateSlot: CfsSlot | null = null
+    showCalibrationResult = false
+    /** Results older than the page are not shown on load. */
+    openedAt = Date.now() / 1000
     slotDialogMode: 'auto' | 'edit' | 'rfid' = 'auto'
     slotDialogNonce = 0
     pendingRfidCode = ''
@@ -1252,7 +1287,37 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         const brand = (slot.brand ?? '').trim()
         let text = name || slot.material || ''
         if (name && brand && !name.toLocaleLowerCase().includes(brand.toLocaleLowerCase())) text = `${name} · ${brand}`
-        return text ? `${this.slotLabel(slot)} · ${text}` : this.slotLabel(slot)
+        const label = text ? `${this.slotLabel(slot)} · ${text}` : this.slotLabel(slot)
+        const settings = slot.present ? cfsFilamentSettingsText(slot) : ''
+        return settings ? `${label} — ${settings}` : label
+    }
+
+    get calibration(): CfsPaCalibrationState {
+        return cfsPaCalibrationState(this.$store.state.printer)
+    }
+
+    /** "PA 0.040 · 21 mm³/s": the values a load applies; sources in the tooltip. */
+    slotSettingsShort(slot: CfsSlot): string {
+        const parts: string[] = []
+        if (slot.pressure_advance !== null && slot.pressure_advance !== undefined)
+            parts.push(`PA ${Number(slot.pressure_advance).toFixed(3)}`)
+        if (slot.max_flow !== null && slot.max_flow !== undefined) parts.push(`${Number(slot.max_flow)} mm³/s`)
+        return parts.join(' · ')
+    }
+
+    get lastCalibrationTime(): number | null {
+        return this.$store.state.printer?.k2_load_cell_pa?.last_calibration?.time ?? null
+    }
+
+    @Watch('lastCalibrationTime')
+    onCalibrationFinished(time: number | null): void {
+        // A calibration that ends while the page is open shows its result.
+        if (time !== null && time > this.openedAt) this.showCalibrationResult = true
+    }
+
+    openCalibrate(slot: CfsSlot): void {
+        this.calibrateSlot = slot
+        this.showCalibrate = true
     }
 
     slotColor(slot: CfsSlot): string {
@@ -1666,6 +1731,14 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     font-size: 0.76rem;
     line-height: 1.3;
     opacity: 0.75;
+}
+
+.cfs-tile-settings {
+    font-size: 0.7rem;
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cfs-tile-remaining {
