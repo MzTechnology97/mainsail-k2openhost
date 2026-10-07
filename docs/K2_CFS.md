@@ -205,12 +205,13 @@ It can be changed during a print as well; the next runout follows the new order.
 
 <img src="images/k2-openhost/cfs-settings-menu.png" alt="CFS settings menu" width="300">
 
-| Switch               | Backend setting                                                                                                           |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Runout swap          | `_BOX_SET_RUNOUT_SWAP` — automatic swap to an identical spool                                                             |
-| Unload after print   | `_BOX_SET_UNLOAD_AFTER_PRINT` — unload the filament when a print completes                                                |
-| Read RFID on insert  | `_BOX_SET_RFID_INSERT_READING` — read a tag when a spool is inserted                                                      |
-| Read RFID at startup | `_BOX_SET_RFID_STARTUP_READING` — full RFID sweep at printer start (off by default; cached slots are restored without it) |
+| Switch               | Backend setting                                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runout swap          | `_BOX_SET_RUNOUT_SWAP` — automatic swap to an identical spool                                                                                                           |
+| Unload after print   | `_BOX_SET_UNLOAD_AFTER_PRINT` — unload the filament when a print completes                                                                                              |
+| Read RFID on insert  | `_BOX_SET_RFID_INSERT_READING` — read a tag when a spool is inserted                                                                                                    |
+| Read RFID at startup | `_BOX_SET_RFID_STARTUP_READING` — full RFID sweep at printer start (off by default; cached slots are restored without it)                                               |
+| Clog detection       | `_BOX_SET_CLOG_DETECTION` — pause when the extruder feeds while the CFS does not refill; saved by the CFS, shown only when the backend reports `clog_detection_enabled` |
 
 The footer shows the API, inventory and print-mapping contract versions. On phones narrower than 360 px the filament library and RFID scan move into this menu, so the panel title stays readable.
 
@@ -557,6 +558,7 @@ _BOX_SET_RUNOUT_ORDER ORDER=<slot>,<slot>,...   (0-based slots; ORDER=AUTO reset
 _BOX_SET_UNLOAD_AFTER_PRINT ENABLE=<0|1>
 _BOX_SET_RFID_INSERT_READING ENABLE=<0|1>
 _BOX_SET_RFID_STARTUP_READING ENABLE=<0|1>
+_BOX_SET_CLOG_DETECTION ENABLE=<0|1>
 BOX_PRINT_INFO FILENAME=<file>
 BOX_PRINT_START FILENAME=<file> MAP=<tool:slot,...>
 ```
@@ -594,15 +596,17 @@ The helper runs `npm ci` when `package-lock.json` changes and builds with Node 2
 
 Verified on the development K2 Pro (one CFS):
 
-- panel, slot tiles, filament path at idle, library, slot editor, RFID sheet, settings switches;
+- panel, slot tiles, filament path at idle, library, slot editor, RFID sheet, settings switches (clog detection on 2026-10-07);
 - `BOX_PRINT_INFO` and the backend auto-map suggestion;
+- mapped prints with CFS loading (9 h and 18 h) and an automatic runout swap to an identical spool during a print (2026-10-05/06);
+- no RFID reread of the slot loaded toward the printhead (2026-10-07);
 - layout at 320, 375, 820, 1440 and 2560 px wide;
 - several-CFS layout and runout groups with simulated status data.
 
 Still to verify on hardware (see the K2-OpenHost [hardware test plan](https://github.com/MzTechnology97/K2-OpenHost/blob/main/docs/en/HARDWARE_TEST_PLAN.md)):
 
-- a complete mapped `BOX_PRINT_START` with a real tool change, and the filament path during a print;
-- automatic runout swap during a print;
+- a mapped multi-colour print with repeated tool changes, and the filament path during a print;
+- assigning a spool inserted in a free slot during a print;
 - power-loss recovery of a mapped print;
 - a second physical CFS unit.
 
