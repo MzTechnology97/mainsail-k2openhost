@@ -93,12 +93,14 @@ export interface CfsPrintTool {
 
 /** Mapping warning from the backend: informational, it never blocks a print. */
 export interface CfsMappingWarning {
-    kind: 'low_filament' | 'material_variant' | 'material_mismatch'
+    kind: 'low_filament' | 'low_filament_live' | 'material_variant' | 'material_mismatch'
     tool: number
     slot: number
     needed_m?: number
     remaining_m?: number
     includes_swap?: boolean
+    /** low_filament_live with several tools: need scaled by file progress. */
+    estimated?: boolean
     tool_material?: string
     slot_material?: string
 }

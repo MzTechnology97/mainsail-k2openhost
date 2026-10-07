@@ -9,6 +9,7 @@ import { detect } from 'detect-browser'
 import semver from 'semver'
 import { minBrowserVersions } from '@/store/variables'
 import { GuiMaintenanceStateEntry } from '@/store/gui/maintenance/types'
+import { cfsFilamentNotices } from '@/plugins/cfsLabels'
 
 export const getters: GetterTree<GuiNotificationState, RootState> = {
     getNotifications: (state, getters) => {
@@ -43,6 +44,9 @@ export const getters: GetterTree<GuiNotificationState, RootState> = {
 
         // TMC overheat warnings
         notifications = notifications.concat(getters['getNotificationsOverheatDrivers'])
+
+        // K2-OpenHost: CFS spools that may run out during the print
+        notifications = notifications.concat(getters['getNotificationsCfsFilament'])
 
         const mapType = {
             normal: 2,
@@ -399,6 +403,29 @@ export const getters: GetterTree<GuiNotificationState, RootState> = {
         })
 
         return notifications
+    },
+
+    getNotificationsCfsFilament: (state, getters, rootState) => {
+        const box = rootState.printer?.box
+        if (!box) return []
+        const date = new Date()
+        const notices = cfsFilamentNotices(box.mapping_warnings, box.slots, rootState.printer?.print_stats?.filename)
+        const dismissed = getters['getDismissByCategory']('cfsfilament').map(
+            (dismiss: GuiNotificationStateDismissEntry) => `cfsfilament/${dismiss.id}`
+        )
+        return notices
+            .map(
+                (notice) =>
+                    ({
+                        id: `cfsfilament/${notice.id}`,
+                        priority: notice.priority,
+                        title: i18n.t('App.Notifications.CfsLowFilament').toString(),
+                        description: notice.description,
+                        date,
+                        dismissed: false,
+                    }) as GuiNotificationStateEntry
+            )
+            .filter((entry) => !dismissed.includes(entry.id))
     },
 
     getNotificationsOverheatDrivers: (state, getters, rootState) => {
