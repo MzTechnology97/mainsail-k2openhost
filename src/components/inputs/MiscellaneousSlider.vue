@@ -15,7 +15,7 @@
                         {{ mdiLightbulbOutline }}
                     </v-icon>
                     <v-icon v-else-if="type.includes('fan')" small :class="fanClasses">{{ mdiFan }}</v-icon>
-                    <span>{{ convertName(name) }}</span>
+                    <span>{{ displayName }}</span>
                     <v-spacer />
                     <small v-if="rpm !== null" :class="rpmClasses">{{ Math.round(rpm ?? 0) }} RPM</small>
                     <span v-if="!controllable" class="font-weight-bold">
@@ -115,6 +115,14 @@ export default class MiscellaneousSlider extends Mixins(BaseMixin) {
     mdiLightbulbOnOutline = mdiLightbulbOnOutline
 
     convertName = convertName
+
+    // K2 part cooling fans: [fan] on the toolhead, [fan_generic aux_fans]
+    // on the side. Their object names alone read as "Fan" and "Aux Fans".
+    get displayName(): string {
+        if (this.type === 'fan') return 'Toolhead Part Fan'
+        if (this.type === 'fan_generic' && this.name === 'aux_fans') return 'Side Part Fan'
+        return convertName(this.name)
+    }
     declare private timeout: ReturnType<typeof setTimeout>
     private isLocked: boolean = false
     private invalidChars: string[] = ['e', 'E', '+']
