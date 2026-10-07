@@ -58,7 +58,7 @@
                         <v-divider />
                     </template>
                     <v-list-item
-                        v-for="setting in settingItems"
+                        v-for="setting in visibleSettingItems"
                         :key="setting.key"
                         :disabled="readOnlyMode"
                         @click="toggleSetting(setting.command, setting.key)">
@@ -527,6 +527,7 @@ import {
     mdiNfcVariant,
     mdiPackageVariantClosed,
     mdiPencil,
+    mdiPipeDisconnected,
     mdiPlay,
     mdiPrinter3dNozzle,
     mdiRefresh,
@@ -550,6 +551,7 @@ type CfsSettingKey =
     | 'unload_after_print_enabled'
     | 'rfid_insert_reading_enabled'
     | 'rfid_startup_reading_enabled'
+    | 'clog_detection_enabled'
 
 interface CfsSection {
     key: string
@@ -665,7 +667,18 @@ export default class CfsPanel extends Mixins(BaseMixin) {
             label: 'Read RFID at startup',
             icon: mdiNfcVariant,
         },
+        {
+            key: 'clog_detection_enabled',
+            command: '_BOX_SET_CLOG_DETECTION',
+            label: 'Clog detection',
+            icon: mdiPipeDisconnected,
+        },
     ]
+
+    // Settings the running backend reports; older ones lack clog detection.
+    get visibleSettingItems() {
+        return this.settingItems.filter((setting) => setting.key in this.box)
+    }
 
     showFilamentManager = false
     showSlotDialog = false
