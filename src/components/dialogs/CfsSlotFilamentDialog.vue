@@ -117,6 +117,18 @@
 
                         <section class="cfs-sd-section">
                             <cfs-color-picker v-model="color" label="Colour of this spool" />
+                            <div v-if="runoutMatch.state !== 'none'" class="cfs-sd-runout" :class="runoutClass">
+                                <v-icon small class="mr-1">{{ mdiInformationOutline }}</v-icon>
+                                <span>{{ runoutText }}</span>
+                                <v-btn
+                                    v-if="runoutMatch.state === 'color'"
+                                    x-small
+                                    text
+                                    color="primary"
+                                    @click="useSourceColor">
+                                    Use the same colour
+                                </v-btn>
+                            </div>
                         </section>
                     </div>
 
@@ -149,7 +161,8 @@
                     v-if="cfsSlot && rfidManaged && !cfsSlot.external"
                     text
                     color="primary"
-                    :disabled="printerIsPrinting"
+                    :disabled="printerIsPrinting || cfsSlot.loaded"
+                    :title="cfsSlot.loaded ? 'Loaded toward the printhead: unload it to reread the RFID tag' : ''"
                     @click="rereadRfid">
                     <v-icon left small>{{ mdiRefresh }}</v-icon>
                     Reread RFID
@@ -181,6 +194,7 @@ import CfsColorPicker from '@/components/cfs/CfsColorPicker.vue'
 import CfsFilamentCard, { CfsFilamentCardBadge, CfsFilamentCardData } from '@/components/cfs/CfsFilamentCard.vue'
 import { CfsBoxState, CfsFilament, CfsSlot } from '@/types/cfs'
 import { cfsFilamentSource, cfsSlotLabel } from '@/plugins/cfsLabels'
+import { CfsRunoutMatch, cfsRunoutMatch } from '@/plugins/cfsRunoutAssign'
 import {
     mdiClose,
     mdiContentSave,
@@ -396,6 +410,33 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
         return [slot.material, slot.name || slot.brand].filter(Boolean).join(' · ')
     }
 
+    // Runout backup: the Box picks present slots with the same material and
+    // colour as the loaded slot, also for a spool assigned during the print.
+    get runoutMatch(): CfsRunoutMatch {
+        if (!this.cfsSlot || this.cfsSlot.external) return { state: 'none', source: null }
+        const material = this.selectedProfile?.material ?? this.material
+        return cfsRunoutMatch(this.box, this.cfsSlot.index, material, this.color)
+    }
+
+    get runoutText(): string {
+        const source = this.runoutMatch.source
+        if (!source) return ''
+        const label = cfsSlotLabel(source)
+        if (this.runoutMatch.state === 'joins') return `Runout backup for ${label}: same material and colour.`
+        if (this.runoutMatch.state === 'color')
+            return `Not a runout backup for ${label}: same material, but its colour is ${source.color}.`
+        return `Not a runout backup for ${label}: it holds ${source.material}.`
+    }
+
+    get runoutClass(): string {
+        return this.runoutMatch.state === 'joins' ? 'success--text' : 'warning--text'
+    }
+
+    useSourceColor(): void {
+        const source = this.runoutMatch.source
+        if (source) this.color = this.validColor(source.color)
+    }
+
     get canSave(): boolean {
         return !!this.cfsSlot && !this.rfidManaged && !!this.selectedProfile
     }
@@ -469,7 +510,14 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
     }
 
     rereadRfid(): void {
-        if (!this.cfsSlot || !this.rfidManaged || this.cfsSlot.external || this.printerIsPrinting) return
+        if (
+            !this.cfsSlot ||
+            !this.rfidManaged ||
+            this.cfsSlot.external ||
+            this.printerIsPrinting ||
+            this.cfsSlot.loaded
+        )
+            return
         this.send(`_BOX_RFID_READ_SLOT SLOT=${this.cfsSlot.index}`)
         this.close()
     }
@@ -556,6 +604,15 @@ export default class CfsSlotFilamentDialog extends Mixins(BaseMixin) {
 
 .cfs-sd-wide {
     grid-column: 1 / -1;
+}
+
+.cfs-sd-runout {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 0.8rem;
 }
 
 .cfs-sd-hint,
