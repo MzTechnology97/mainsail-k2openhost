@@ -29,6 +29,8 @@ export interface CfsSlot {
     /** Relative humidity (%) of the slot's CFS and the limit of its material (newer backend). */
     humidity_pct?: number | null
     humidity_limit_pct?: number | null
+    /** OrcaSlicer preset ID of the slot's filament, else of its material's generic preset (newer backend). */
+    orca_filament_id?: string
     external: boolean
     // Kalico: false while a live RFID tag owns a CFS bay. The external spool
     // stays clearable: its reader has no removal event.
@@ -56,6 +58,20 @@ export interface CfsFilament {
     system: boolean
     /** Origin: shipped catalog, created by the user, K2-RFID import or auto-registered from a tag. */
     source?: 'system' | 'user' | 'import' | 'rfid'
+    /** OrcaSlicer preset ID in use: the user's override, else the default (newer backend). */
+    orca_filament_id?: string
+    orca_filament_id_default?: string
+    orca_filament_id_custom?: boolean
+    /** Name of the OrcaSlicer system preset with that ID, '' for a user preset. */
+    orca_preset?: string
+}
+
+/** An OrcaSlicer system filament preset usable on the K2 Pro (box.orca_presets). */
+export interface CfsOrcaPreset {
+    id: string
+    name: string
+    type: string
+    vendor: string
 }
 
 export interface CfsFilamentLibrary {
@@ -245,6 +261,9 @@ export interface CfsBoxState {
     clog_detection_enabled?: boolean
     /** Reference spool length (m) per material, '*' for unknown ones (1 kg, 1.75 mm). Absent on older backends. */
     spool_length_defaults?: Record<string, number>
+    /** OrcaSlicer presets for the preset picker, and the OrcaSlicer revision they come from. */
+    orca_presets?: CfsOrcaPreset[]
+    orca_presets_source?: string
     tracking_active: boolean
     filament_detected: boolean
     filament_sensor_error: string | null

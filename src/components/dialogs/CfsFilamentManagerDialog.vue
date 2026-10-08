@@ -105,6 +105,12 @@
                                                 {{ filament.system ? 'Create custom from this' : 'Duplicate' }}
                                             </v-list-item-title>
                                         </v-list-item>
+                                        <v-list-item :disabled="readOnly" @click="editOrca(filament)">
+                                            <v-list-item-icon>
+                                                <v-icon small>{{ mdiPrinter3dNozzleOutline }}</v-icon>
+                                            </v-list-item-icon>
+                                            <v-list-item-title>OrcaSlicer preset…</v-list-item-title>
+                                        </v-list-item>
                                         <v-list-item
                                             v-if="calibration.available"
                                             :disabled="!!calibrationBlock(filament)"
@@ -306,6 +312,16 @@
                                 </section>
 
                                 <section class="cfs-editor-section">
+                                    <h3>OrcaSlicer</h3>
+                                    <cfs-orca-preset-field
+                                        v-model="form.orca_filament_id"
+                                        :presets="orcaPresets"
+                                        :material="form.material"
+                                        :default-id="formOrcaDefault"
+                                        :disabled="readOnly" />
+                                </section>
+
+                                <section class="cfs-editor-section">
                                     <h3>Temperatures</h3>
                                     <div class="cfs-editor-temps">
                                         <v-range-slider
@@ -434,6 +450,38 @@
                 </v-card-actions>
             </template>
         </v-card>
+
+        <v-dialog v-model="orcaDialog" max-width="520">
+            <v-card v-if="orcaEditing">
+                <v-card-title>OrcaSlicer preset of {{ orcaEditing.name || orcaEditing.id }}</v-card-title>
+                <v-card-text>
+                    <p class="cfs-orca-note">
+                        The preset OrcaSlicer selects for this filament. It does not change the profile, its name or its
+                        RFID codes{{ orcaEditing.system ? ', and the system profile stays read only' : '' }}.
+                    </p>
+                    <cfs-orca-preset-field
+                        v-model="orcaValue"
+                        :presets="orcaPresets"
+                        :material="orcaEditing.material"
+                        :default-id="orcaEditing.orca_filament_id_default || ''"
+                        :disabled="readOnly" />
+                </v-card-text>
+                <v-card-actions>
+                    <v-btn
+                        v-if="orcaEditing.orca_filament_id_custom"
+                        text
+                        :disabled="readOnly"
+                        @click="orcaValue = orcaEditing.orca_filament_id_default || ''">
+                        Default
+                    </v-btn>
+                    <v-spacer />
+                    <v-btn text @click="orcaDialog = false">{{ $t('Buttons.Cancel') }}</v-btn>
+                    <v-btn color="primary" :disabled="readOnly || !orcaValid" @click="saveOrca">
+                        {{ $t('Buttons.Save') }}
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
 
         <v-dialog v-model="confirmDelete" max-width="420">
             <v-card v-if="deleting">
@@ -580,7 +628,9 @@ import {
     cfsSlotForFilament,
 } from '@/plugins/cfsFilamentSettings'
 import CfsFilamentCard, { CfsFilamentCardBadge } from '@/components/cfs/CfsFilamentCard.vue'
-import { CfsBoxState, CfsFilament, CfsFilamentLibrary, CfsSlot } from '@/types/cfs'
+import CfsOrcaPresetField from '@/components/cfs/CfsOrcaPresetField.vue'
+import { CfsBoxState, CfsFilament, CfsFilamentLibrary, CfsOrcaPreset, CfsSlot } from '@/types/cfs'
+import { cfsOrcaBadge, cfsOrcaCommand, cfsOrcaIdValid } from '@/plugins/cfsOrca'
 import { cfsBoxNumber, cfsFilamentSource, cfsSlotLabel, cfsSlotShortLabel } from '@/plugins/cfsLabels'
 import {
     mdiArrowLeft,
@@ -598,6 +648,7 @@ import {
     mdiMagnify,
     mdiPencil,
     mdiPlus,
+    mdiPrinter3dNozzleOutline,
     mdiRefresh,
     mdiTagMultipleOutline,
     mdiTagOutline,
@@ -618,6 +669,8 @@ interface FilamentForm {
     nominal_length_m: number | null
     rfid_code: string
     spoolman_id: number | null
+    /** OrcaSlicer preset ID (box_orca); '' = the default. */
+    orca_filament_id: string
 }
 
 interface BrandRow {
@@ -632,7 +685,9 @@ interface BrandRow {
 
 type Scope = 'all' | 'custom' | 'system' | 'used'
 
-@Component({ components: { CfsColorPicker, CfsFilamentCard, CfsPaCalibrateDialog, CfsPaResultDialog } })
+@Component({
+    components: { CfsColorPicker, CfsFilamentCard, CfsOrcaPresetField, CfsPaCalibrateDialog, CfsPaResultDialog },
+})
 export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     @VModel({ type: Boolean }) showDialog!: boolean
     @Prop({ type: Object, required: true }) readonly box!: CfsBoxState
@@ -655,6 +710,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     mdiMagnify = mdiMagnify
     mdiPencil = mdiPencil
     mdiPlus = mdiPlus
+    mdiPrinter3dNozzleOutline = mdiPrinter3dNozzleOutline
     mdiRefresh = mdiRefresh
     mdiTagMultipleOutline = mdiTagMultipleOutline
     mdiTagOutline = mdiTagOutline
@@ -685,6 +741,10 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     confirmBrandDelete = false
     brandDeleting: BrandRow | null = null
     brandMoveTo = ''
+    /** OrcaSlicer preset dialog, available for every profile (system ones too). */
+    orcaDialog = false
+    orcaEditing: CfsFilament | null = null
+    orcaValue = ''
 
     get isMobile(): boolean {
         return this.$vuetify.breakpoint.xsOnly
@@ -990,6 +1050,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             rules.pressureAdvance(this.form.pressure_advance),
             rules.maxFlow(this.form.max_flow),
             rules.nominalLength(this.form.nominal_length_m),
+            cfsOrcaIdValid(this.form.orca_filament_id),
         ]
         return checks.every((check) => check === true)
     }
@@ -1001,7 +1062,38 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         if (filament.rfid_code) badges.push({ text: `RFID ${filament.rfid_code}`, title: 'RFID material code' })
         const length = this.spoolLengthBadge(filament)
         if (length) badges.push(length)
+        const orca = cfsOrcaBadge(filament)
+        if (orca) badges.push(orca)
         return badges
+    }
+
+    get orcaPresets(): CfsOrcaPreset[] {
+        return this.box.orca_presets ?? []
+    }
+
+    /** Default OrcaSlicer ID of the profile being edited ('' for a new one: Kalico derives it on save). */
+    get formOrcaDefault(): string {
+        if (!this.editingExisting) return ''
+        return this.box.filaments?.[this.form.id]?.orca_filament_id_default ?? ''
+    }
+
+    get orcaValid(): boolean {
+        return cfsOrcaIdValid(this.orcaValue)
+    }
+
+    editOrca(filament: CfsFilament): void {
+        if (this.readOnly) return
+        this.orcaEditing = filament
+        this.orcaValue = filament.orca_filament_id ?? ''
+        this.orcaDialog = true
+    }
+
+    saveOrca(): void {
+        const filament = this.orcaEditing
+        this.orcaDialog = false
+        if (!filament || this.readOnly || !this.orcaValid) return
+        const command = cfsOrcaCommand(filament, this.orcaValue, (text) => this.q(text))
+        if (command) this.send(command)
     }
 
     /** Reference spool length (m) Kalico publishes for a material, or null on older backends. */
@@ -1183,6 +1275,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             nominal_length_m: null,
             rfid_code: '',
             spoolman_id: null,
+            orca_filament_id: '',
         }
     }
 
@@ -1221,6 +1314,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             nominal_length_m: filament.nominal_length_m ?? null,
             rfid_code: filament.rfid_code ?? '',
             spoolman_id: filament.spoolman_id ?? null,
+            orca_filament_id: filament.orca_filament_id ?? '',
         }
     }
 
@@ -1311,7 +1405,15 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         if (this.validNumber(this.form.spoolman_id)) {
             parts.push(`SPOOLMAN_ID=${Math.round(Number(this.form.spoolman_id))}`)
         }
-        this.send(parts.join(' '))
+        const id = this.form.id.trim().toUpperCase()
+        const existing = this.editingExisting ? this.box.filaments?.[id] : undefined
+        // A new profile has no stored ID yet: send any chosen preset (Kalico drops one equal to its default).
+        const orca = cfsOrcaCommand(
+            existing ?? { id, orca_filament_id: '', orca_filament_id_default: '', orca_filament_id_custom: false },
+            this.form.orca_filament_id,
+            (text) => this.q(text)
+        )
+        this.send(orca ? `${parts.join(' ')}\n${orca}` : parts.join(' '))
         this.editing = false
     }
 
