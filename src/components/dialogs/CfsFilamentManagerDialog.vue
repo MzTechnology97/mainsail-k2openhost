@@ -364,6 +364,17 @@
                                             hint="OrcaSlicer: max volumetric speed"
                                             persistent-hint
                                             :rules="[rules.maxFlow]" />
+                                        <v-text-field
+                                            v-model.number="form.nominal_length_m"
+                                            dense
+                                            outlined
+                                            type="number"
+                                            step="1"
+                                            label="Nominal length (m)"
+                                            :placeholder="formReferenceLength ? String(formReferenceLength) : ''"
+                                            :hint="nominalLengthHint"
+                                            persistent-hint
+                                            :rules="[rules.nominalLength]" />
                                     </div>
                                 </section>
 
@@ -604,6 +615,7 @@ interface FilamentForm {
     max_temp: number | null
     pressure_advance: number | null
     max_flow: number | null
+    nominal_length_m: number | null
     rfid_code: string
     spoolman_id: number | null
 }
@@ -662,8 +674,12 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
     showCalibrate = false
     calibrateSlot: CfsSlot | null = null
     showCalibrationResult = false
-    /** PA and max flow of the profile when the editor opened, to clear removed values. */
-    editedValues: { pressure_advance: boolean; max_flow: boolean } = { pressure_advance: false, max_flow: false }
+    /** PA, max flow and length of the profile when the editor opened, to clear removed values. */
+    editedValues: { pressure_advance: boolean; max_flow: boolean; nominal_length_m: boolean } = {
+        pressure_advance: false,
+        max_flow: false,
+        nominal_length_m: false,
+    }
     brandsDialog = false
     newBrand = ''
     confirmBrandDelete = false
@@ -901,6 +917,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             max_temp: this.validNumber(this.form.max_temp) ? Number(this.form.max_temp) : null,
             pressure_advance: this.validNumber(this.form.pressure_advance) ? Number(this.form.pressure_advance) : null,
             max_flow: this.validNumber(this.form.max_flow) ? Number(this.form.max_flow) : null,
+            nominal_length_m: this.validNumber(this.form.nominal_length_m) ? Number(this.form.nominal_length_m) : null,
             rfid_code: this.form.rfid_code,
             spoolman_id: this.validNumber(this.form.spoolman_id) ? Number(this.form.spoolman_id) : null,
             system: false,
@@ -949,6 +966,11 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
                 value === '' ||
                 (Number(value) >= 0.1 && Number(value) <= 200) ||
                 'Between 0.1 and 200 mm³/s',
+            nominalLength: (value: unknown) =>
+                value === null ||
+                value === '' ||
+                (Number(value) >= 1 && Number(value) <= 10000) ||
+                'Between 1 and 10000 m',
         }
     }
 
@@ -967,6 +989,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             rules.targetInRange(),
             rules.pressureAdvance(this.form.pressure_advance),
             rules.maxFlow(this.form.max_flow),
+            rules.nominalLength(this.form.nominal_length_m),
         ]
         return checks.every((check) => check === true)
     }
@@ -976,7 +999,43 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         const used = this.usage(filament.id)
         if (used.length) badges.push({ text: `In use · ${used.join(', ')}`, kind: 'success' })
         if (filament.rfid_code) badges.push({ text: `RFID ${filament.rfid_code}`, title: 'RFID material code' })
+        const length = this.spoolLengthBadge(filament)
+        if (length) badges.push(length)
         return badges
+    }
+
+    /** Reference spool length (m) Kalico publishes for a material, or null on older backends. */
+    referenceLength(material: string): number | null {
+        const defaults = this.box.spool_length_defaults
+        if (!defaults) return null
+        const value = defaults[(material ?? '').trim().toUpperCase()] ?? defaults['*']
+        return typeof value === 'number' && Number.isFinite(value) ? value : null
+    }
+
+    get formReferenceLength(): number | null {
+        return this.referenceLength(this.form.material)
+    }
+
+    get nominalLengthHint(): string {
+        const reference = this.formReferenceLength
+        if (reference === null) return 'Third-party RFID spools: filament on a full spool'
+        const material = (this.form.material ?? '').trim().toUpperCase() || 'this material'
+        return `Third-party RFID spools. Empty = ${material} reference, ${reference.toFixed(0)} m per kg`
+    }
+
+    spoolLengthBadge(filament: CfsFilament): CfsFilamentCardBadge | null {
+        if (this.validNumber(filament.nominal_length_m)) {
+            return {
+                text: `${Number(filament.nominal_length_m).toFixed(0)} m`,
+                title: 'Spool length set in this profile (third-party RFID spools)',
+            }
+        }
+        const reference = this.referenceLength(filament.material)
+        if (reference === null) return null
+        return {
+            text: `${reference.toFixed(0)} m ref.`,
+            title: `Reference length of a 1 kg ${filament.material} spool (third-party RFID spools)`,
+        }
     }
 
     sourceBadge(filament: CfsFilament): CfsFilamentCardBadge {
@@ -1121,6 +1180,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             max_temp: null,
             pressure_advance: null,
             max_flow: null,
+            nominal_length_m: null,
             rfid_code: '',
             spoolman_id: null,
         }
@@ -1158,6 +1218,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
             max_temp: filament.max_temp ?? null,
             pressure_advance: filament.pressure_advance ?? null,
             max_flow: filament.max_flow ?? null,
+            nominal_length_m: filament.nominal_length_m ?? null,
             rfid_code: filament.rfid_code ?? '',
             spoolman_id: filament.spoolman_id ?? null,
         }
@@ -1167,6 +1228,7 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         this.editedValues = {
             pressure_advance: existing && this.validNumber(form.pressure_advance),
             max_flow: existing && this.validNumber(form.max_flow),
+            nominal_length_m: existing && this.validNumber(form.nominal_length_m),
         }
         this.form = form
         this.presetId = null
@@ -1244,6 +1306,8 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         if (pressureAdvance !== null) parts.push(`PRESSURE_ADVANCE=${pressureAdvance}`)
         const maxFlow = cfsOptionalParam(this.form.max_flow, this.editedValues.max_flow, 2)
         if (maxFlow !== null) parts.push(`MAX_FLOW=${maxFlow}`)
+        const nominalLength = cfsOptionalParam(this.form.nominal_length_m, this.editedValues.nominal_length_m, 1)
+        if (nominalLength !== null) parts.push(`NOMINAL_LENGTH_M=${nominalLength}`)
         if (this.validNumber(this.form.spoolman_id)) {
             parts.push(`SPOOLMAN_ID=${Math.round(Number(this.form.spoolman_id))}`)
         }
