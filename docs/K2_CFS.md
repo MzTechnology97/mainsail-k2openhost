@@ -355,6 +355,17 @@ The editor is split into sections, with a live **preview** of the card:
 4. **Colour**: the default colour for manual slots, from the palette or a custom colour.
 5. **Pressure advance, max flow and nominal length**: pressure advance (0–2), max flow (mm³/s) and **Nominal length (m)**, the filament on a full spool of this profile. Kalico uses it to track third-party RFID spools (Bambu, QIDI), whose tags give no length. Empty means the reference length of the material, shown as placeholder: a 1 kg, 1.75 mm spool, for example PLA 335 m, PETG 327 m, ABS 400 m. Set it for another spool size or a brand that differs; system and generic profiles stay read only, use **Create custom from this**.
 6. **Advanced**: RFID material code (`1xxxxx` tag codes are normalised) and Spoolman ID.
+7. **OrcaSlicer**: the OrcaSlicer preset this filament selects, searched by name, ID, vendor or type among the K2 Pro presets (the filament's material first), or the ID of your own OrcaSlicer preset (`P…`, the `filament_id` in its JSON). Empty keeps the default (see below).
+
+**OrcaSlicer preset of every filament**
+
+Each filament carries the OrcaSlicer `filament_id` of its preset, the ID OrcaSlicer matches presets with. It is kept apart from the profile: it never changes the filament's ID, name, brand or RFID codes, so RFID matching and remaining-filament tracking are unaffected.
+
+- **Default**, from Kalico (`config/k2/orca_k2pro_filament_ids.json`, generated from OrcaSlicer's profiles): the K2 Pro preset of a Creality or Generic catalog profile (`Hyper PLA` → `Hyper PLA @K2 Pro-all`), the OrcaSlicer filament-library product of a Bambu tag (`Bambulab PETG HF` → `Bambu PETG HF @System`), or a preset named like the profile. A profile without a match has none; its slots then use the generic preset of their material.
+- **Your choice**: **OrcaSlicer preset…** in a card's menu, for every profile including the read-only system ones, or the OrcaSlicer section of the editor. **Default** in that dialog, or an empty field, goes back to the default.
+- The card shows **Orca: preset name** (highlighted when you set it).
+
+The ID is published per slot (`orca_filament_id` in the Box status and in Moonraker's `lane_data`). Released OrcaSlicer still picks presets by material only; the ID is used once OrcaSlicer reads it ([OrcaSlicer PR #16208](https://github.com/OrcaSlicer/OrcaSlicer/pull/16208)).
 
 **Create filament** stays disabled until every field is valid. A tag with an unknown RFID code opens this editor prefilled with the tag's code and colour.
 
@@ -527,21 +538,23 @@ box.print_mapping_version  = 1
 
 Fields used:
 
-| Field                                                                                       | Purpose                                                                                                                    |
-| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `slots[]`                                                                                   | physical slots plus the external spool: presence, loaded flag, profile, colour, RFID data, remaining                       |
-| `slots[].humidity_pct`, `slots[].humidity_limit_pct`                                        | humidity of the slot's CFS and the limit of its material, for the **Humid CFS** warning (_newer backend_)                  |
-| `spool_length_defaults`                                                                     | reference spool length (m) per material, the placeholder of **Nominal length** in the library (_newer backend_)            |
-| `operation`                                                                                 | running load/unload: active, kind, slot, stage, plus the change-engine step and target (_optional; newer backend_)         |
-| `boxes[]`                                                                                   | one entry per CFS: address, online, status/state codes, own temperature/humidity, slot indices (_optional; newer backend_) |
-| `temp_c`, `humidity_pct`                                                                    | environment of the box on the load path (fallback when `boxes` is missing)                                                 |
-| `load_path`                                                                                 | source slot, encoder, buffer, printhead sensor, clog detection                                                             |
-| `runout`, `runout_groups`, `runout_swap_enabled`, `runout_order`                            | runout sequence, groups and the manual order (`runout_order` and slot `runout_rank`: _newer backend_)                      |
-| `recovery`                                                                                  | blocked state and reason                                                                                                   |
-| `filaments`, `materials`                                                                    | library and catalog; each filament carries `source` (_newer backend_)                                                      |
-| `filament_library`                                                                          | library file path, counts and error (_optional; newer backend_)                                                            |
-| `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`, `mapping_warnings`  | print-start mapping and its warnings                                                                                       |
-| `unload_after_print_enabled`, `rfid_insert_reading_enabled`, `rfid_startup_reading_enabled` | settings switches                                                                                                          |
+| Field                                                                                                | Purpose                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `slots[]`                                                                                            | physical slots plus the external spool: presence, loaded flag, profile, colour, RFID data, remaining                       |
+| `slots[].humidity_pct`, `slots[].humidity_limit_pct`                                                 | humidity of the slot's CFS and the limit of its material, for the **Humid CFS** warning (_newer backend_)                  |
+| `spool_length_defaults`                                                                              | reference spool length (m) per material, the placeholder of **Nominal length** in the library (_newer backend_)            |
+| `filaments[].orca_filament_id`, `orca_filament_id_default`, `orca_filament_id_custom`, `orca_preset` | OrcaSlicer preset of each filament: in use, default, set by the user, preset name (_newer backend_)                        |
+| `slots[].orca_filament_id`, `orca_presets`, `orca_presets_source`                                    | OrcaSlicer preset per slot, the K2 Pro presets for the picker and their OrcaSlicer revision (_newer backend_)              |
+| `operation`                                                                                          | running load/unload: active, kind, slot, stage, plus the change-engine step and target (_optional; newer backend_)         |
+| `boxes[]`                                                                                            | one entry per CFS: address, online, status/state codes, own temperature/humidity, slot indices (_optional; newer backend_) |
+| `temp_c`, `humidity_pct`                                                                             | environment of the box on the load path (fallback when `boxes` is missing)                                                 |
+| `load_path`                                                                                          | source slot, encoder, buffer, printhead sensor, clog detection                                                             |
+| `runout`, `runout_groups`, `runout_swap_enabled`, `runout_order`                                     | runout sequence, groups and the manual order (`runout_order` and slot `runout_rank`: _newer backend_)                      |
+| `recovery`                                                                                           | blocked state and reason                                                                                                   |
+| `filaments`, `materials`                                                                             | library and catalog; each filament carries `source` (_newer backend_)                                                      |
+| `filament_library`                                                                                   | library file path, counts and error (_optional; newer backend_)                                                            |
+| `print_info`, `print_mapping`, `auto_mapping`, `print_mapping_enabled`, `mapping_warnings`           | print-start mapping and its warnings                                                                                       |
+| `unload_after_print_enabled`, `rfid_insert_reading_enabled`, `rfid_startup_reading_enabled`          | settings switches                                                                                                          |
 
 The printhead stage also reads `printer.extruder` and `printer['filament_switch_sensor filament_sensor']`.
 
@@ -556,6 +569,7 @@ BOX_RFID_SCAN
 _BOX_RFID_READ_SLOT SLOT=<n>
 _BOX_SLOT_SET / _BOX_SLOT_CLEAR / _BOX_SLOT_ASSIGN
 _BOX_FILAMENT_SET / _BOX_FILAMENT_DELETE
+_BOX_FILAMENT_ORCA_ID ID=<filament> ORCA_ID=<id>   (RESET=1: back to the default)
 _BOX_FILAMENT_RELOAD
 _BOX_SET_RUNOUT_SWAP ENABLE=<0|1>
 _BOX_SET_RUNOUT_ORDER ORDER=<slot>,<slot>,...   (0-based slots; ORDER=AUTO resets)
