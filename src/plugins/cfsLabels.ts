@@ -88,6 +88,12 @@ export function cfsMappingWarningText(warning: CfsMappingWarning, slotLabel: str
             warning.remaining_m ?? 0
         ).toFixed(1)} m left${swap}: the print pauses at runout unless more filament is loaded.`
     }
+    if (warning.kind === 'humidity') {
+        const material = warning.slot_material || '?'
+        return `${tool} uses ${slotLabel} (${material}) in a CFS at ${warning.humidity_pct ?? '?'}% humidity, above ${
+            warning.limit_pct ?? '?'
+        }% for ${material}: dry the spool or expect stringing and weaker parts.`
+    }
     if (warning.kind === 'material_variant') {
         return `${tool} is ${warning.tool_material || '?'} but ${slotLabel} holds ${
             warning.slot_material || '?'
@@ -104,9 +110,9 @@ export interface CfsFilamentNotice {
 
 /**
  * Filament warnings of the current print for the notification bell: the
- * check at print start (low_filament, normal) and the live check during the
- * print (low_filament_live, high). The id carries the file name, so a later
- * print shows its own warnings again after one was dismissed.
+ * check at print start (low_filament and humidity, normal) and the live check
+ * during the print (low_filament_live, high). The id carries the file name,
+ * so a later print shows its own warnings again after one was dismissed.
  */
 export function cfsFilamentNotices(
     warnings: CfsMappingWarning[] | undefined,
@@ -115,7 +121,7 @@ export function cfsFilamentNotices(
 ): CfsFilamentNotice[] {
     const file = String(filename ?? '').replace(/[^A-Za-z0-9._-]+/g, '_') || 'print'
     return (warnings ?? [])
-        .filter((warning) => warning.kind === 'low_filament' || warning.kind === 'low_filament_live')
+        .filter((warning) => ['low_filament', 'low_filament_live', 'humidity'].includes(warning.kind))
         .map((warning) => {
             const slot = (slots ?? []).find((item) => item.index === warning.slot)
             const label = slot ? cfsSlotLabel(slot) : `slot ${warning.slot + 1}`

@@ -26,6 +26,9 @@ export interface CfsSlot {
     rfid_total_m: number | null
     rfid_remaining_m: number | null
     rfid_reserve: string
+    /** Relative humidity (%) of the slot's CFS and the limit of its material (newer backend). */
+    humidity_pct?: number | null
+    humidity_limit_pct?: number | null
     external: boolean
     // Kalico: false while a live RFID tag owns a CFS bay. The external spool
     // stays clearable: its reader has no removal event.
@@ -102,7 +105,7 @@ export interface CfsPrintTool {
 
 /** Mapping warning from the backend: informational, it never blocks a print. */
 export interface CfsMappingWarning {
-    kind: 'low_filament' | 'low_filament_live' | 'material_variant' | 'material_mismatch'
+    kind: 'low_filament' | 'low_filament_live' | 'material_variant' | 'material_mismatch' | 'humidity'
     tool: number
     slot: number
     needed_m?: number
@@ -112,6 +115,9 @@ export interface CfsMappingWarning {
     estimated?: boolean
     tool_material?: string
     slot_material?: string
+    /** humidity: relative humidity of the slot's CFS and the material's limit, in %. */
+    humidity_pct?: number
+    limit_pct?: number
 }
 
 export interface CfsPrintInfo {

@@ -27,6 +27,28 @@ describe('cfsMappingWarningText', () => {
     })
 })
 
+describe('humidity warning', () => {
+    const warning: CfsMappingWarning = {
+        kind: 'humidity',
+        tool: 0,
+        slot: 1,
+        humidity_pct: 48,
+        limit_pct: 25,
+        slot_material: 'PA-CF',
+    }
+
+    it('names the slot, the humidity and the limit', () => {
+        const text = cfsMappingWarningText(warning, 'Box 1, slot 2')
+        expect(text).toContain('T0 uses Box 1, slot 2 (PA-CF) in a CFS at 48% humidity, above 25% for PA-CF')
+    })
+
+    it('reaches the notification bell with normal priority', () => {
+        const [notice] = cfsFilamentNotices([warning], slots, 'part.gcode')
+        expect(notice.id).toBe('humidity-T0-S1-part.gcode')
+        expect(notice.priority).toBe('normal')
+    })
+})
+
 describe('cfsFilamentNotices', () => {
     const warnings: CfsMappingWarning[] = [
         { kind: 'low_filament', tool: 0, slot: 1, needed_m: 111, remaining_m: 50 },
