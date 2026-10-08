@@ -72,6 +72,15 @@
                             <v-switch :input-value="box[setting.key]" readonly inset hide-details />
                         </v-list-item-action>
                     </v-list-item>
+                    <v-list-item v-if="hasThirdPartyLength" :disabled="readOnlyMode" @click="openThirdPartyLength">
+                        <v-list-item-icon>
+                            <v-icon>{{ mdiTapeMeasure }}</v-icon>
+                        </v-list-item-icon>
+                        <v-list-item-content>
+                            <v-list-item-title>Third-party spool length</v-list-item-title>
+                            <v-list-item-subtitle>{{ thirdPartyLengthText }}</v-list-item-subtitle>
+                        </v-list-item-content>
+                    </v-list-item>
                     <v-divider />
                     <v-list-item dense disabled>
                         <v-list-item-content>
@@ -529,6 +538,42 @@
             :box="box"
             @show-result="showCalibrationResult = true" />
         <cfs-pa-result-dialog v-model="showCalibrationResult" :box="box" />
+        <v-dialog v-model="showThirdPartyLength" max-width="440">
+            <v-card>
+                <v-card-title>Third-party spool length</v-card-title>
+                <v-card-text>
+                    <p class="text-body-2">
+                        Filament on a full spool for RFID spools of other brands (Bambu, QIDI) whose tag gives no
+                        length. With it, the remaining filament is tracked during printing and saved like on Creality
+                        spools. The nominal length of a filament profile overrides it. 0 shows only the CFS percentage.
+                    </p>
+                    <v-text-field
+                        v-model="thirdPartyLengthInput"
+                        type="number"
+                        min="0"
+                        max="10000"
+                        step="1"
+                        suffix="m"
+                        label="Length"
+                        outlined
+                        dense
+                        hide-details="auto"
+                        :rules="[thirdPartyLengthRule]" />
+                </v-card-text>
+                <v-card-actions>
+                    <v-btn text @click="resetThirdPartyLength">Reset to box.cfg</v-btn>
+                    <v-spacer />
+                    <v-btn text @click="showThirdPartyLength = false">Cancel</v-btn>
+                    <v-btn
+                        text
+                        color="primary"
+                        :disabled="thirdPartyLengthRule(thirdPartyLengthInput) !== true"
+                        @click="saveThirdPartyLength">
+                        Save
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
     </panel>
 </template>
 
@@ -552,6 +597,7 @@ import {
     mdiPackageVariantClosed,
     mdiPencil,
     mdiPipeDisconnected,
+    mdiTapeMeasure,
     mdiPlay,
     mdiPrinter3dNozzle,
     mdiRefresh,
@@ -708,6 +754,20 @@ export default class CfsPanel extends Mixins(BaseMixin) {
     // Settings the running backend reports; older ones lack clog detection.
     get visibleSettingItems() {
         return this.settingItems.filter((setting) => setting.key in this.box)
+    }
+
+    mdiTapeMeasure = mdiTapeMeasure
+    showThirdPartyLength = false
+    thirdPartyLengthInput = ''
+
+    get hasThirdPartyLength(): boolean {
+        return typeof this.box.third_party_rfid_length_m === 'number'
+    }
+
+    get thirdPartyLengthText(): string {
+        const length = this.box.third_party_rfid_length_m
+        if (typeof length !== 'number') return ''
+        return length > 0 ? `${length.toFixed(0)} m` : 'Off: CFS percentage only'
     }
 
     showFilamentManager = false
@@ -1470,6 +1530,31 @@ export default class CfsPanel extends Mixins(BaseMixin) {
         // remapped by a print or HelixScreen tool map.
         const command = this.hasSelectSlotCommand ? `BOX_SELECT_SLOT SLOT=${slot.index}` : `T${slot.index}`
         this.sendCommand(command, `cfs_slot_${slot.index}`)
+    }
+
+    openThirdPartyLength(): void {
+        if (this.readOnlyMode) return
+        this.thirdPartyLengthInput = String(this.box.third_party_rfid_length_m ?? 330)
+        this.showThirdPartyLength = true
+    }
+
+    thirdPartyLengthRule(value: unknown): boolean | string {
+        const length = Number(value)
+        if (value === '' || value === null || !Number.isFinite(length)) return 'Enter a length in metres'
+        return length === 0 || (length >= 1 && length <= 10000) || '0 (off) or 1–10000 m'
+    }
+
+    saveThirdPartyLength(): void {
+        if (this.readOnlyMode || this.thirdPartyLengthRule(this.thirdPartyLengthInput) !== true) return
+        const length = Number(this.thirdPartyLengthInput)
+        this.sendCommand(`_BOX_SET_THIRD_PARTY_LENGTH LENGTH_M=${length}`, 'cfs_third_party_length')
+        this.showThirdPartyLength = false
+    }
+
+    resetThirdPartyLength(): void {
+        if (this.readOnlyMode) return
+        this.sendCommand('_BOX_SET_THIRD_PARTY_LENGTH RESET=1', 'cfs_third_party_length')
+        this.showThirdPartyLength = false
     }
 
     toggleSetting(command: string, setting: CfsSettingKey): void {
