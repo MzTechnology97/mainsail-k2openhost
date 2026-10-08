@@ -237,8 +237,8 @@ export interface CfsBoxState {
     rfid_startup_reading_enabled: boolean
     /** Clog check on (saved by the CFS); absent on older backends. */
     clog_detection_enabled?: boolean
-    /** Length (m) of third-party RFID spools without one; 0 = CFS percentage only. Absent on older backends. */
-    third_party_rfid_length_m?: number
+    /** Reference spool length (m) per material, '*' for unknown ones (1 kg, 1.75 mm). Absent on older backends. */
+    spool_length_defaults?: Record<string, number>
     tracking_active: boolean
     filament_detected: boolean
     filament_sensor_error: string | null

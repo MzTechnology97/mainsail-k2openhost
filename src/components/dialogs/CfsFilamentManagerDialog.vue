@@ -371,7 +371,8 @@
                                             type="number"
                                             step="1"
                                             label="Nominal length (m)"
-                                            hint="Third-party RFID spools: filament on a full spool. Empty = CFS setting"
+                                            :placeholder="formReferenceLength ? String(formReferenceLength) : ''"
+                                            :hint="nominalLengthHint"
                                             persistent-hint
                                             :rules="[rules.nominalLength]" />
                                     </div>
@@ -998,7 +999,43 @@ export default class CfsFilamentManagerDialog extends Mixins(BaseMixin) {
         const used = this.usage(filament.id)
         if (used.length) badges.push({ text: `In use · ${used.join(', ')}`, kind: 'success' })
         if (filament.rfid_code) badges.push({ text: `RFID ${filament.rfid_code}`, title: 'RFID material code' })
+        const length = this.spoolLengthBadge(filament)
+        if (length) badges.push(length)
         return badges
+    }
+
+    /** Reference spool length (m) Kalico publishes for a material, or null on older backends. */
+    referenceLength(material: string): number | null {
+        const defaults = this.box.spool_length_defaults
+        if (!defaults) return null
+        const value = defaults[(material ?? '').trim().toUpperCase()] ?? defaults['*']
+        return typeof value === 'number' && Number.isFinite(value) ? value : null
+    }
+
+    get formReferenceLength(): number | null {
+        return this.referenceLength(this.form.material)
+    }
+
+    get nominalLengthHint(): string {
+        const reference = this.formReferenceLength
+        if (reference === null) return 'Third-party RFID spools: filament on a full spool'
+        const material = (this.form.material ?? '').trim().toUpperCase() || 'this material'
+        return `Third-party RFID spools. Empty = ${material} reference, ${reference.toFixed(0)} m per kg`
+    }
+
+    spoolLengthBadge(filament: CfsFilament): CfsFilamentCardBadge | null {
+        if (this.validNumber(filament.nominal_length_m)) {
+            return {
+                text: `${Number(filament.nominal_length_m).toFixed(0)} m`,
+                title: 'Spool length set in this profile (third-party RFID spools)',
+            }
+        }
+        const reference = this.referenceLength(filament.material)
+        if (reference === null) return null
+        return {
+            text: `${reference.toFixed(0)} m ref.`,
+            title: `Reference length of a 1 kg ${filament.material} spool (third-party RFID spools)`,
+        }
     }
 
     sourceBadge(filament: CfsFilament): CfsFilamentCardBadge {
