@@ -1,6 +1,6 @@
 # Creality CFS in Mainsail K2-OpenHost
 
-Updated: **2026-10-03**.
+Updated: **2026-10-08**.
 
 This fork adds a native **CFS** (Creality Filament System) panel and print-start mapping to Mainsail for the [K2-OpenHost](https://github.com/MzTechnology97/K2-OpenHost) project, where a Creality K2 Pro runs Kalico + Moonraker on an external host. Everything on this page was built for K2-OpenHost; the rest of Mainsail is unchanged upstream code.
 
@@ -316,16 +316,16 @@ For example, searching `PETG` with the **Custom** filter lists your PETG profile
 
 <img src="images/k2-openhost/cfs-library-card-anatomy.png" alt="Parts of a profile card" width="340">
 
-| #   | Part            | Meaning                                                                                   |
-| --- | --------------- | ----------------------------------------------------------------------------------------- |
-| 1   | Spool           | the profile's default colour for manual slots                                             |
-| 2   | Name            | name (ideally the OrcaSlicer preset name), material and brand                             |
-| 3   | ⋮ Menu          | duplicate, create a custom copy of a system profile, edit or delete (see below)           |
-| 4   | Origin          | `System` (catalog, read only), `Custom`, `Imported` (K2-RFID database) or `From RFID tag` |
-| 5   | In use          | the slots currently using the profile; the next badge is the RFID material code           |
-| 6   | Temperature bar | the nozzle range on a 150–350 °C scale; the white marker is the target/flush temperature  |
-| 7   | Footer          | ID (the K2-RFID material ID), pressure advance and Spoolman ID when set                   |
-| 8   | Use in slot     | assigns the profile to a slot without opening the slot editor                             |
+| #   | Part            | Meaning                                                                                                                                                       |
+| --- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Spool           | the profile's default colour for manual slots                                                                                                                 |
+| 2   | Name            | name (ideally the OrcaSlicer preset name), material and brand                                                                                                 |
+| 3   | ⋮ Menu          | duplicate, create a custom copy of a system profile, edit or delete (see below)                                                                               |
+| 4   | Origin          | `System` (catalog, read only), `Custom`, `Imported` (K2-RFID database) or `From RFID tag`                                                                     |
+| 5   | In use          | the slots currently using the profile; then the RFID material code and the spool length: the profile's own (`350 m`) or the material reference (`400 m ref.`) |
+| 6   | Temperature bar | the nozzle range on a 150–350 °C scale; the white marker is the target/flush temperature                                                                      |
+| 7   | Footer          | ID (the K2-RFID material ID), pressure advance and Spoolman ID when set                                                                                       |
+| 8   | Use in slot     | assigns the profile to a slot without opening the slot editor                                                                                                 |
 
 **Actions on a profile**
 
@@ -353,7 +353,8 @@ The editor is split into sections, with a live **preview** of the card:
    - **ID**: a free 5-digit ID (from 90001) is generated. It is the K2-RFID material ID: the hint shows the tag code (`1` + ID) that loads this profile. The editor refuses an ID that belongs to a system profile or to an existing custom profile, which the backend would otherwise overwrite.
 3. **Temperatures**: a range slider plus minimum, target/flush and maximum fields. The target must lie inside the range.
 4. **Colour**: the default colour for manual slots, from the palette or a custom colour.
-5. **Advanced**: pressure advance (0–2), RFID material code (`1xxxxx` tag codes are normalised) and Spoolman ID.
+5. **Pressure advance, max flow and nominal length**: pressure advance (0–2), max flow (mm³/s) and **Nominal length (m)**, the filament on a full spool of this profile. Kalico uses it to track third-party RFID spools (Bambu, QIDI), whose tags give no length. Empty means the reference length of the material, shown as placeholder: a 1 kg, 1.75 mm spool, for example PLA 335 m, PETG 327 m, ABS 400 m. Set it for another spool size or a brand that differs; system and generic profiles stay read only, use **Create custom from this**.
+6. **Advanced**: RFID material code (`1xxxxx` tag codes are normalised) and Spoolman ID.
 
 **Create filament** stays disabled until every field is valid. A tag with an unknown RFID code opens this editor prefilled with the tag's code and colour.
 
