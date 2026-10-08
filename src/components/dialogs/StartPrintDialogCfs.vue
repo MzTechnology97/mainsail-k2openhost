@@ -291,12 +291,20 @@ export default class StartPrintDialogCfs extends Mixins(BaseMixin) {
     /** Warning when the chosen spool may run out before this tool is done. */
     filamentWarning(tool: CfsPrintTool): string {
         if (!this.mappingEnabled) return ''
-        const needed = cfsNeededMetres(tool.length_mm)
         const slot = this.box?.slots?.find((item) => item.index === this.mapping[tool.tool])
-        if (needed === null || !slot) return ''
-        const available = this.availableMetres(slot)
-        if (available === null || available >= needed) return ''
-        return `May run out: about ${available.toFixed(1)} m left, about ${needed.toFixed(1)} m needed`
+        if (!slot) return ''
+        const warnings: string[] = []
+        const needed = cfsNeededMetres(tool.length_mm)
+        const available = needed === null ? null : this.availableMetres(slot)
+        if (needed !== null && available !== null && available < needed) {
+            warnings.push(`May run out: about ${available.toFixed(1)} m left, about ${needed.toFixed(1)} m needed`)
+        }
+        const humidity = slot.humidity_pct
+        const limit = slot.humidity_limit_pct
+        if (typeof humidity === 'number' && typeof limit === 'number' && humidity > limit) {
+            warnings.push(`Humid CFS: ${humidity}% (above ${limit}% for ${slot.material || 'this material'})`)
+        }
+        return warnings.join(' · ')
     }
 
     get hasWarnings(): boolean {
