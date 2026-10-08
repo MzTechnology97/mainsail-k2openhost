@@ -469,14 +469,15 @@ The official OrcaSlicer can also read the CFS slots before slicing: its filament
 
 ### Warnings before and during a print
 
-Two situations produce a **warning**. Warnings never block the print: they are shown in the dialog, printed in the console when the print starts, and kept in the CFS panel while it runs.
+Three situations produce a **warning**. Warnings never block the print: they are shown in the dialog, printed in the console when the print starts, and kept in the CFS panel while it runs.
 
 | Warning              | When                                                                                                                                                                                                                                                                                                                                                                      | Example                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | **May run out**      | The RFID remaining estimate of the chosen spool is below the filament the slicer expects for that tool (the G-code length + 10 % + 1 m for priming and purging). With runout swap on, identical spools (same material and colour) are added. Spools without an RFID estimate count as enough.                                                                             | <img src="images/k2-openhost/cfs-print-warning-low.png" alt="Spool that may run out" width="420"> |
 | **Material variant** | You chose by hand a slot with the filled variant of the tool's material, or the reverse: `PETG` on `PETG-CF`, `PLA` on `PLA-GF` (fillers CF, GF, KF, AF). The automatic matcher never makes this choice: with no compatible spool loaded the tool stays unmapped, and a direct start from OrcaSlicer is refused. Related materials such as `PLA` / `PLA+` match normally. | <img src="images/k2-openhost/cfs-print-warning-variant.png" alt="Material variant" width="420">   |
+| **Humid CFS**        | The CFS holding the chosen spool is more humid than its material tolerates (the backend's `humidity_limit_pct`: PLA 55 %, PETG 50 %, TPU 40 %, PC 35 %, PA 25 %, PVA 20 %; overridable with `humidity_limits` in `[box]`). The spool may need drying.                                                                                                                     |                                                                                                   |
 
-In the second example the CFS holds PETG-CF but no PETG: Auto map leaves both tools unmapped, T0 was then set by hand to the PETG-CF slot (hence the warning) and the teal tool still needs a slot.
+In the **Material variant** example the CFS holds PETG-CF but no PETG: Auto map leaves both tools unmapped, T0 was then set by hand to the PETG-CF slot (hence the warning) and the teal tool still needs a slot.
 
 While the print runs the panel keeps the warnings of the map in use (the backend's `mapping_warnings`):
 
@@ -529,6 +530,8 @@ Fields used:
 | Field                                                                                       | Purpose                                                                                                                    |
 | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `slots[]`                                                                                   | physical slots plus the external spool: presence, loaded flag, profile, colour, RFID data, remaining                       |
+| `slots[].humidity_pct`, `slots[].humidity_limit_pct`                                        | humidity of the slot's CFS and the limit of its material, for the **Humid CFS** warning (_newer backend_)                  |
+| `spool_length_defaults`                                                                     | reference spool length (m) per material, the placeholder of **Nominal length** in the library (_newer backend_)            |
 | `operation`                                                                                 | running load/unload: active, kind, slot, stage, plus the change-engine step and target (_optional; newer backend_)         |
 | `boxes[]`                                                                                   | one entry per CFS: address, online, status/state codes, own temperature/humidity, slot indices (_optional; newer backend_) |
 | `temp_c`, `humidity_pct`                                                                    | environment of the box on the load path (fallback when `boxes` is missing)                                                 |
